@@ -10,8 +10,6 @@ import os
 import numpy as np
 
 from . import scene as scene_module
-from sionna.utils.tensors import expand_to_rank, insert_dims
-from sionna.constants import PI
 from .utils import dot, r_hat
 
 
@@ -515,7 +513,7 @@ class Paths:
         ds = np.expand_dims(ds, axis=-1)
         # Expand time steps for broadcasting
         # (1, 1, 1, num_time_steps)
-        ts = expand_to_rank(ts, ds.ndim, 0)
+        ts = ts.reshape((1, 1, 1, ts.size))
         # (num_rx, num_tx, max_num_paths, num_time_steps)
         ds = ds*ts
         exp_ds = np.exp(1j*ds)
@@ -655,7 +653,7 @@ class Paths:
                     # RIS geometry
                     # (num_rx, num_tx, num_this_ris_path)
                     tau_this_ris -= mean_tau_this_ris
-                    ps = np.zeros_like(tau_this_ris) - 2.j*PI*self._scene.frequency*tau_this_ris
+                    ps = np.zeros_like(tau_this_ris) - 2.j*np.pi*self._scene.frequency*tau_this_ris
                     ps = ps[..., np.newaxis]
                     # (num_rx, num_tx, num_this_ris_path, num_time_steps)
                     a_this_ris = a_this_ris * np.exp(ps)
@@ -693,7 +691,7 @@ class Paths:
         # Compute base-band CIR
         # (num_rx, num_tx, num_selected_paths, 1)
         tau = np.expand_dims(tau, -1)
-        phase = np.zeros_like(tau) - 2.j*PI*self._scene.frequency*tau
+        phase = np.zeros_like(tau) - 2.j*np.pi*self._scene.frequency*tau
         # Manual repeat along the time step dimension as high-dimensional
         # broadcast is not possible
         phase = np.repeat(phase, a.shape[-1], axis=-1)
