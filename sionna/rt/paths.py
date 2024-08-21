@@ -90,11 +90,7 @@ class Paths:
     SCATTERED = 3
     RIS = 4
 
-    def __init__(self,
-                 sources,
-                 targets,
-                 scene,
-                 types=None):
+    def __init__(self, sources, targets, scene, types=None):
 
         num_sources = sources.shape[0]
         num_targets = targets.shape[0]
@@ -136,12 +132,14 @@ class Paths:
         """
         members_names = dir(self)
         members_objects = [getattr(self, attr) for attr in members_names]
-        data = {attr_name[1:] : attr_obj for (attr_obj, attr_name)
-                in zip(members_objects,members_names)
-                if not callable(attr_obj) and
-                   not isinstance(attr_obj, scene_module.Scene) and
-                   not attr_name.startswith("__") and
-                   attr_name.startswith("_")}
+        data = {
+            attr_name[1:]: attr_obj
+            for (attr_obj, attr_name) in zip(members_objects, members_names)
+            if not callable(attr_obj)
+            and not isinstance(attr_obj, scene_module.Scene)
+            and not attr_name.startswith("__")
+            and attr_name.startswith("_")
+        }
         return data
 
     def from_dict(self, data_dict):
@@ -158,7 +156,7 @@ class Paths:
         """
         for attr_name in data_dict:
             attr_obj = data_dict[attr_name]
-            setattr(self, '_' + attr_name, attr_obj)
+            setattr(self, "_" + attr_name, attr_obj)
 
     def export(self, filename):
         r"""
@@ -178,7 +176,7 @@ class Paths:
         mask = self.targets_sources_mask
 
         # Content of the obj file
-        r = ''
+        r = ""
         offset = 0
         for rx in range(vertices.shape[1]):
             tgt = targets[rx].numpy()
@@ -187,40 +185,40 @@ class Paths:
                 for p in range(vertices.shape[3]):
 
                     # If the path is masked, skip it
-                    if not mask[rx,tx,p]:
+                    if not mask[rx, tx, p]:
                         continue
 
                     # Add a comment to describe this path
-                    r += f'# Path {p} from tx {tx} to rx {rx}' + os.linesep
+                    r += f"# Path {p} from tx {tx} to rx {rx}" + os.linesep
                     # Vertices and intersected objects
-                    vs = vertices[:,rx,tx,p]
-                    objs = objects[:,rx,tx,p]
+                    vs = vertices[:, rx, tx, p]
+                    objs = objects[:, rx, tx, p]
 
                     depth = 0
                     # First vertex is the source
-                    r += f"v {src[0]:.8f} {src[1]:.8f} {src[2]:.8f}"+os.linesep
+                    r += f"v {src[0]:.8f} {src[1]:.8f} {src[2]:.8f}" + os.linesep
                     # Add intersection points
-                    for v,o in zip(vs,objs):
+                    for v, o in zip(vs, objs):
                         # Skip if no intersection
                         if o == -1:
                             continue
                         r += f"v {v[0]:.8f} {v[1]:.8f} {v[2]:.8f}" + os.linesep
                         depth += 1
-                    r += f"v {tgt[0]:.8f} {tgt[1]:.8f} {tgt[2]:.8f}"+os.linesep
+                    r += f"v {tgt[0]:.8f} {tgt[1]:.8f} {tgt[2]:.8f}" + os.linesep
 
                     # Add the connections
-                    for i in range(1, depth+2):
+                    for i in range(1, depth + 2):
                         v0 = i + offset
                         v1 = i + offset + 1
                         r += f"l {v0} {v1}" + os.linesep
 
                     # Prepare for the next path
                     r += os.linesep
-                    offset += depth+2
+                    offset += depth + 2
 
         # Save the file
         # pylint: disable=unspecified-encoding
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             f.write(r)
 
     @property
@@ -368,7 +366,7 @@ class Paths:
             self.tau += self._min_tau
         else:
             self.tau -= self._min_tau
-        self.tau = np.where(self.tau<0, np.astype(-1, self.tau.dtype) , self.tau)
+        self.tau = np.where(self.tau < 0, np.astype(-1, self.tau.dtype), self.tau)
         self._normalize_delays = v
 
     @property
@@ -385,8 +383,13 @@ class Paths:
     def doppler(self, v):
         self._doppler = v
 
-    def apply_doppler(self, sampling_frequency, num_time_steps,
-                      tx_velocities=(0.,0.,0.), rx_velocities=(0.,0.,0.)):
+    def apply_doppler(
+        self,
+        sampling_frequency,
+        num_time_steps,
+        tx_velocities=(0.0, 0.0, 0.0),
+        rx_velocities=(0.0, 0.0, 0.0),
+    ):
         # pylint: disable=line-too-long
         r"""
         Apply Doppler shifts to all paths according to the velocities
@@ -469,7 +472,7 @@ class Paths:
             Defaults to `[0,0,0]`.
         """
 
-        two_pi = 2. * np.pi
+        two_pi = 2.0 * np.pi
 
         if tx_velocities.shape[1] != 3:
             raise ValueError("Last dimension of `tx_velocities` must equal 3")
@@ -501,12 +504,12 @@ class Paths:
 
         # Compute the Doppler shift
         # (num_rx, num_tx, max_num_paths)
-        tx_ds = two_pi*dot(tx_velocities, k_t)/self._scene.wavelength
-        rx_ds = two_pi*dot(rx_velocities, k_r)/self._scene.wavelength
+        tx_ds = two_pi * dot(tx_velocities, k_t) / self._scene.wavelength
+        rx_ds = two_pi * dot(rx_velocities, k_r) / self._scene.wavelength
         ds = tx_ds + rx_ds
 
         # Add Doppler shifts due to movement of scene objects
-        ds += two_pi*self.doppler
+        ds += two_pi * self.doppler
 
         # Expand for the time sample dimension
         # (num_rx, num_tx, max_num_paths, 1)
@@ -515,8 +518,8 @@ class Paths:
         # (1, 1, 1, num_time_steps)
         ts = ts.reshape((1, 1, 1, ts.size))
         # (num_rx, num_tx, max_num_paths, num_time_steps)
-        ds = ds*ts
-        exp_ds = np.exp(1j*ds)
+        ds = ds * ts
+        exp_ds = np.exp(1j * ds)
 
         # Apply Doppler shift
         # Expand with time dimension
@@ -526,18 +529,20 @@ class Paths:
         # Manual broadcast last dimension
         a = np.repeat(a, exp_ds.shape[-1], -1)
 
-        a = a*exp_ds
+        a = a * exp_ds
 
         self.a = a
 
-    def cir(self,
-            los=True,
-            reflection=True,
-            diffraction=True,
-            scattering=True,
-            ris=True,
-            cluster_ris_paths=True,
-            num_paths=None):
+    def cir(
+        self,
+        los=True,
+        reflection=True,
+        diffraction=True,
+        scattering=True,
+        ris=True,
+        cluster_ris_paths=True,
+        num_paths=None,
+    ):
         # pylint: disable=line-too-long
         r"""
         Returns the baseband equivalent channel impulse response :eq:`h_b`
@@ -609,17 +614,13 @@ class Paths:
         # (max_num_paths,)
         selection_mask = np.full(types.shape, False)
         if los:
-            selection_mask = np.logical_or(selection_mask,
-                                           types == Paths.LOS)
+            selection_mask = np.logical_or(selection_mask, types == Paths.LOS)
         if reflection:
-            selection_mask = np.logical_or(selection_mask,
-                                           types == Paths.SPECULAR)
+            selection_mask = np.logical_or(selection_mask, types == Paths.SPECULAR)
         if diffraction:
-            selection_mask = np.logical_or(selection_mask,
-                                           types == Paths.DIFFRACTED)
+            selection_mask = np.logical_or(selection_mask, types == Paths.DIFFRACTED)
         if scattering:
-            selection_mask = np.logical_or(selection_mask,
-                                           types == Paths.SCATTERED)
+            selection_mask = np.logical_or(selection_mask, types == Paths.SCATTERED)
         if ris:
             if cluster_ris_paths:
                 # Combine path coefficients from every RIS coherently and
@@ -653,7 +654,10 @@ class Paths:
                     # RIS geometry
                     # (num_rx, num_tx, num_this_ris_path)
                     tau_this_ris -= mean_tau_this_ris
-                    ps = np.zeros_like(tau_this_ris) - 2.j*np.pi*self._scene.frequency*tau_this_ris
+                    ps = (
+                        np.zeros_like(tau_this_ris)
+                        - 2.0j * np.pi * self._scene.frequency * tau_this_ris
+                    )
                     ps = ps[..., np.newaxis]
                     # (num_rx, num_tx, num_this_ris_path, num_time_steps)
                     a_this_ris = a_this_ris * np.exp(ps)
@@ -672,8 +676,7 @@ class Paths:
                 # (num_rx, num_tx, num_ris)
                 tau_combined_ris_all = np.concatenate(tau_combined_ris_all, axis=-1)
             else:
-                selection_mask = np.logical_or(selection_mask,
-                                               types == Paths.RIS)
+                selection_mask = np.logical_or(selection_mask, types == Paths.RIS)
 
         # Extract selected paths
         # (num_rx, num_tx, num_selected_paths, num_time_steps)
@@ -691,22 +694,22 @@ class Paths:
         # Compute base-band CIR
         # (num_rx, num_tx, num_selected_paths, 1)
         tau = np.expand_dims(tau, -1)
-        phase = np.zeros_like(tau) - 2.j*np.pi*self._scene.frequency*tau
+        phase = np.zeros_like(tau) - 2.0j * np.pi * self._scene.frequency * tau
         # Manual repeat along the time step dimension as high-dimensional
         # broadcast is not possible
         phase = np.repeat(phase, a.shape[-1], axis=-1)
-        a = a*np.exp(phase)
+        a = a * np.exp(phase)
 
         if num_paths is not None:
             a, tau = self.pad_or_crop(a, tau, num_paths)
 
-        return a,tau
+        return a, tau
 
     #######################################################
     # Internal methods and properties
     #######################################################
 
-    @ property
+    @property
     def targets_sources_mask(self):
         # pylint: disable=line-too-long
         """
@@ -717,7 +720,7 @@ class Paths:
         """
         return self._targets_sources_mask
 
-    @ targets_sources_mask.setter
+    @targets_sources_mask.setter
     def targets_sources_mask(self, v):
         self._targets_sources_mask = v
 
@@ -757,8 +760,6 @@ class Paths:
             First set of paths to merge
         """
 
-        dtype = self._scene.dtype
-
         more_vertices = more_paths.vertices
         more_objects = more_paths.objects
         more_types = more_paths.types
@@ -772,20 +773,24 @@ class Paths:
         # Pad the paths with the lowest depth
         padding = self.vertices.shape[0] - more_vertices.shape[0]
         if padding > 0:
-            more_vertices = np.pad(more_vertices,
-                                   [[0,padding],[0,0],[0,0],[0,0],[0,0]],
-                                   constant_values=0.)
-            more_objects = np.pad(more_objects,
-                                  [[0,padding],[0,0],[0,0],[0,0]],
-                                  constant_values=-1)
+            more_vertices = np.pad(
+                more_vertices,
+                [[0, padding], [0, 0], [0, 0], [0, 0], [0, 0]],
+                constant_values=0.0,
+            )
+            more_objects = np.pad(
+                more_objects, [[0, padding], [0, 0], [0, 0], [0, 0]], constant_values=-1
+            )
         elif padding < 0:
             padding = -padding
-            self.vertices = np.pad(self.vertices,
-                                   [[0,padding],[0,0],[0,0],[0,0],[0,0]],
-                                   constant_values=tf.zeros((), dtype.real_dtype))
-            self.objects = np.pad(self.objects,
-                                  [[0,padding],[0,0],[0,0],[0,0]],
-                                  constant_values=-1)
+            self.vertices = np.pad(
+                self.vertices,
+                [[0, padding], [0, 0], [0, 0], [0, 0], [0, 0]],
+                constant_values=0.,
+            )
+            self.objects = np.pad(
+                self.objects, [[0, padding], [0, 0], [0, 0], [0, 0]], constant_values=-1
+            )
 
         # Merge types
         if self.types.ndim == 0:
@@ -844,13 +849,13 @@ class Paths:
         self.doppler = np.expand_dims(self.doppler, axis=0)
 
         tau = self.tau
-        if tau.shape[-1] == 0: # No paths
+        if tau.shape[-1] == 0:  # No paths
             self._min_tau = np.zeros_like(tau)
         else:
             tau = np.where(tau < 0, np.inf, tau)
             # (1, num_rx, num_tx, 1)
             min_tau = np.min(tau, axis=3, keepdims=True)
-            min_tau = np.where(min_tau == np.inf, 0., min_tau)
+            min_tau = np.where(min_tau == np.inf, 0.0, min_tau)
             self._min_tau = min_tau
 
         # Add the time steps dimension
@@ -876,7 +881,7 @@ class Paths:
             # (num_targets, num_sources, num_paths)
             los_path = np.logical_and(los_path, mask)
             # (num_paths,)
-            los_path = np.any(los_path, axis=(0,1))
+            los_path = np.any(los_path, axis=(0, 1))
             # (1,)
             los_path_index = np.where(los_path)
             updates = np.repeat(Paths.LOS, los_path_index.shape[0], 0)
@@ -890,7 +895,7 @@ class Paths:
         max_num_paths = a.shape[-2]
 
         # Crop
-        if k<max_num_paths:
+        if k < max_num_paths:
             # Compute indices of the k strongest paths
             # As is independent of the number of time steps,
             # Therefore, we use only the first one a[...,0].
@@ -908,14 +913,21 @@ class Paths:
             tau = tau[ind]
 
         # Pad
-        elif k>max_num_paths:
+        elif k > max_num_paths:
             # Pad paths with zeros
-            pad_size = k-max_num_paths
+            pad_size = k - max_num_paths
 
             # Paddings for the paths gains
-            a = np.pad(a, [[0, 0], [0, 0], [0, pad_size], [0, 0]], 'constant', constant_values=0)
+            a = np.pad(
+                a,
+                [[0, 0], [0, 0], [0, pad_size], [0, 0]],
+                "constant",
+                constant_values=0,
+            )
 
             # Paddings for the delays (-1 by Sionna convention)
-            tau = np.pad(tau, [[0, 0], [0, 0], [0, pad_size]], 'constant', constant_values=-1)
+            tau = np.pad(
+                tau, [[0, 0], [0, 0], [0, pad_size]], "constant", constant_values=-1
+            )
 
         return a, tau
