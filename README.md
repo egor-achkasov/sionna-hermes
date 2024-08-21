@@ -2,6 +2,32 @@
 SPDX-FileCopyrightText: Copyright (c) 2021-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
+
+# Sionna HermesPy fork
+
+Work in progress.
+
+## What is it?
+
+This is a modified Sionna version fitted for a ray-tracing channel model in [HermesPy](https://github.com/Barkhausen-Institut/hermespy).
+
+## How do I use it?
+
+As a Hermes submodule. Follow the [installation instructions](https://hermespy.org/installation.html) and [Sionna RT channel model documentation](https://hermespy.org/api/channel/sionna-rt.html).
+
+## Modifications
+
+### rt
+
+- Replace tensorflow with numpy
+- Assume synthetic_array is True
+- Assume `rdtype` as `np.float_`
+- Remove all `num_rx_ant` and `num_tx_ant` dimensions
+- Remove all `batch_size` dimensions
+- Remove unused functions and properties:
+    - Paths.reverse_direction
+- Replace `assert` with `raise`
+
 # Sionna: An Open-Source Library for Next-Generation Physical Layer Research
 
 Sionna&trade; is an open-source Python library for link-level simulations of digital communication systems built on top of the open-source software library [TensorFlow](https://www.tensorflow.org) for machine learning.

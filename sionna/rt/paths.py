@@ -6,7 +6,6 @@
 Dataclass that stores paths
 """
 
-import tensorflow as tf
 import os
 import numpy as np
 
@@ -14,6 +13,7 @@ from . import scene as scene_module
 from sionna.utils.tensors import expand_to_rank, insert_dims
 from sionna.constants import PI
 from .utils import dot, r_hat
+
 
 class Paths:
     # pylint: disable=line-too-long
@@ -39,45 +39,45 @@ class Paths:
     # Input
     # ------
 
-    # mask : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.bool
+    # mask : (num_rx, num_tx, max_num_paths), np.bool_
     #   Set to `False` for non-existent paths.
     #   When there are multiple transmitters or receivers, path counts may vary between links. This is used to identify non-existent paths.
     #   For such paths, the channel coefficient is set to `0` and the delay to `-1`.
 
-    # a : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, num_time_steps], tf.complex
+    # a : (num_rx, num_tx, max_num_paths, num_time_steps), np.complex_
     #     Channel coefficients :math:`a_i` as defined in :eq:`T_tilde`.
     #     If there are less than `max_num_path` valid paths between a
     #     transmit and receive antenna, the irrelevant elements are
     #     filled with zeros.
 
-    # tau : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+    # tau : (num_rx, num_tx, max_num_paths), np.float_
     #     Propagation delay of each path [s].
-    #     If :attr:`~sionna.rt.Scene.synthetic_array` is `True`, the shape of this tensor
-    #     is `[1, num_rx, num_tx, max_num_paths]` as the delays for the
+    #     If :attr:`~Scene.synthetic_array` is `True`, the shape of this tensor
+    #     is `(1, num_rx, num_tx, max_num_paths)` as the delays for the
     #     individual antenna elements are assumed to be equal.
     #     If there are less than `max_num_path` valid paths between a
     #     transmit and receive antenna, the irrelevant elements are
     #     filled with -1.
 
-    # theta_t : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+    # theta_t : (num_rx, num_tx, max_num_paths), np.float_
     #     Zenith  angles of departure :math:`\theta_{\text{T},i}` [rad].
-    #     If :attr:`~sionna.rt.Scene.synthetic_array` is `True`, the shape of this tensor
-    #     is `[1, num_rx, num_tx, max_num_paths]` as the angles for the
+    #     If :attr:`~Scene.synthetic_array` is `True`, the shape of this tensor
+    #     is `(1, num_rx, num_tx, max_num_paths)` as the angles for the
     #     individual antenna elements are assumed to be equal.
 
-    # phi_t : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+    # phi_t : (num_rx, num_tx, max_num_paths), np.float_
     #     Azimuth angles of departure :math:`\varphi_{\text{T},i}` [rad].
     #     See description of ``theta_t``.
 
-    # theta_r : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+    # theta_r : (num_rx, num_tx, max_num_paths), np.float_
     #     Zenith angles of arrival :math:`\theta_{\text{R},i}` [rad].
     #     See description of ``theta_t``.
 
-    # phi_r : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+    # phi_r : (num_rx, num_tx, max_num_paths), np.float_
     #     Azimuth angles of arrival :math:`\varphi_{\text{T},i}` [rad].
     #     See description of ``theta_t``.
 
-    # types : [batch_size, max_num_paths], tf.int
+    # types : (max_num_paths,), np.int_
     #     Type of path:
 
     #     - 0 : LoS
@@ -98,24 +98,22 @@ class Paths:
                  scene,
                  types=None):
 
-        dtype = scene.dtype
         num_sources = sources.shape[0]
         num_targets = targets.shape[0]
-        rdtype = dtype.real_dtype
 
-        self._a = tf.zeros([num_targets, num_sources, 0], dtype)
-        self._tau = tf.zeros([num_targets, num_sources, 0], rdtype)
-        self._theta_t = tf.zeros([num_targets, num_sources, 0], rdtype)
-        self._theta_r = tf.zeros([num_targets, num_sources, 0], rdtype)
-        self._phi_t = tf.zeros([num_targets, num_sources, 0], rdtype)
-        self._phi_r = tf.zeros([num_targets, num_sources, 0], rdtype)
-        self._mask = tf.fill([num_targets, num_sources, 0], False)
-        self._targets_sources_mask = tf.fill([num_targets, num_sources, 0], False)
-        self._vertices = tf.zeros([0, num_targets, num_sources, 0, 3], rdtype)
-        self._objects = tf.fill([0, num_targets, num_sources, 0], -1)
-        self._doppler = tf.zeros([num_targets, num_sources, 0], rdtype)
+        self._a = np.zeros([num_targets, num_sources, 0], np.complex_)
+        self._tau = np.zeros([num_targets, num_sources, 0], np.float_)
+        self._theta_t = np.zeros([num_targets, num_sources, 0], np.float_)
+        self._theta_r = np.zeros([num_targets, num_sources, 0], np.float_)
+        self._phi_t = np.zeros([num_targets, num_sources, 0], np.float_)
+        self._phi_r = np.zeros([num_targets, num_sources, 0], np.float_)
+        self._mask = np.full([num_targets, num_sources, 0], False)
+        self._targets_sources_mask = np.fill([num_targets, num_sources, 0], False)
+        self._vertices = np.zeros([0, num_targets, num_sources, 0, 3], np.float_)
+        self._objects = np.full([0, num_targets, num_sources, 0], -1)
+        self._doppler = np.zeros([num_targets, num_sources, 0], np.float_)
         if types is None:
-            self._types = tf.fill([0], -1)
+            self._types = np.full([0], -1)
         else:
             self._types = types
 
@@ -197,8 +195,8 @@ class Paths:
                     # Add a comment to describe this path
                     r += f'# Path {p} from tx {tx} to rx {rx}' + os.linesep
                     # Vertices and intersected objects
-                    vs = vertices[:,rx,tx,p].numpy()
-                    objs = objects[:,rx,tx,p].numpy()
+                    vs = vertices[:,rx,tx,p]
+                    objs = objects[:,rx,tx,p]
 
                     depth = 0
                     # First vertex is the source
@@ -231,7 +229,7 @@ class Paths:
     def mask(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.bool : Set to `False` for non-existent paths.
+        (num_rx, num_tx, max_num_paths), np.bool_ : Set to `False` for non-existent paths.
         When there are multiple transmitters or receivers, path counts may vary between links. This is used to identify non-existent paths.
         For such paths, the channel coefficient is set to `0` and the delay to `-1`.
         """
@@ -245,7 +243,7 @@ class Paths:
     def a(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, num_time_steps], tf.complex : Passband channel coefficients :math:`a_i` of each path as defined in :eq:`H_final`.
+        (num_rx, num_tx, max_num_paths, num_time_steps), np.complex_ : Passband channel coefficients :math:`a_i` of each path as defined in :eq:`H_final`.
         """
         return self._a
 
@@ -257,7 +255,7 @@ class Paths:
     def tau(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Propagation delay :math:`\\tau_i` [s] of each path as defined in :eq:`H_final`.
+        (num_rx, num_tx, max_num_paths), np.float_ : Propagation delay :math:`\\tau_i` [s] of each path as defined in :eq:`H_final`.
         """
         return self._tau
 
@@ -269,7 +267,7 @@ class Paths:
     def theta_t(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Zenith  angles of departure [rad]
+        (num_rx, num_tx, max_num_paths), np.float_ : Zenith  angles of departure [rad]
         """
         return self._theta_t
 
@@ -281,7 +279,7 @@ class Paths:
     def phi_t(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Azimuth angles of departure [rad]
+        (num_rx, num_tx, max_num_paths), np.float_ : Azimuth angles of departure [rad]
         """
         return self._phi_t
 
@@ -293,7 +291,7 @@ class Paths:
     def theta_r(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Zenith angles of arrival [rad]
+        (num_rx, num_tx, max_num_paths), np.float_ : Zenith angles of arrival [rad]
         """
         return self._theta_r
 
@@ -305,7 +303,7 @@ class Paths:
     def phi_r(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Azimuth angles of arrival [rad]
+        (num_rx, num_tx, max_num_paths), np.float_ : Azimuth angles of arrival [rad]
         """
         return self._phi_r
 
@@ -316,7 +314,7 @@ class Paths:
     @property
     def types(self):
         """
-        [batch_size, max_num_paths], tf.int : Type of the paths:
+        (max_num_paths,), np.int_ : Type of the paths:
 
         - 0 : LoS
         - 1 : Reflected
@@ -334,7 +332,7 @@ class Paths:
     def sources(self):
         # pylint: disable=line-too-long
         """
-        [num_sources, 3], tf.float : Sources from which rays (paths) are emitted
+        (num_sources, 3), np.float_ : Sources from which rays (paths) are emitted
         """
         return self._sources
 
@@ -346,7 +344,7 @@ class Paths:
     def targets(self):
         # pylint: disable=line-too-long
         """
-        [num_targets, 3], tf.float : Targets at which rays (paths) are received
+        (num_targets, 3), np.float_ : Targets at which rays (paths) are received
         """
         return self._targets
 
@@ -372,14 +370,14 @@ class Paths:
             self.tau += self._min_tau
         else:
             self.tau -= self._min_tau
-        self.tau = tf.where(self.tau<0, tf.cast(-1, self.tau.dtype) , self.tau)
+        self.tau = np.where(self.tau<0, np.astype(-1, self.tau.dtype) , self.tau)
         self._normalize_delays = v
 
     @property
     def doppler(self):
         # pylint: disable=line-too-long
         """
-        [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float : Doppler shift for each path
+        (num_rx, num_tx, max_num_paths), np.float_ : Doppler shift for each path
         related to movement of objects. The Doppler shifts resulting from
         movements of the transmitters or receivers will be computed from the inputs to the function :func:`~sionna.rt.Paths.apply_doppler`.
         """
@@ -462,149 +460,77 @@ class Paths:
         num_time_steps : int
             Number of time steps.
 
-        tx_velocities : [batch_size, num_tx, 3] or broadcastable, tf.float | `None`
+        tx_velocities : (num_tx, 3), np.float_
             Velocity vectors :math:`(v_\text{x}, v_\text{y}, v_\text{z})` of all
             transmitters [m/s].
             Defaults to `[0,0,0]`.
 
-        rx_velocities : [batch_size, num_tx, 3] or broadcastable, tf.float | `None`
+        rx_velocities : (num_tx, 3), np.float_
             Velocity vectors :math:`(v_\text{x}, v_\text{y}, v_\text{z})` of all
             receivers [m/s].
             Defaults to `[0,0,0]`.
         """
 
-        dtype = self._scene.dtype
-        rdtype = dtype.real_dtype
-        zeror = tf.zeros((), rdtype)
-        two_pi = tf.cast(2.*PI, rdtype)
+        two_pi = 2. * np.pi
 
-        tx_velocities = tf.cast(tx_velocities, rdtype)
-        tx_velocities = expand_to_rank(tx_velocities, 3, 0)
-        if tx_velocities.shape[2] != 3:
+        if tx_velocities.shape[1] != 3:
             raise ValueError("Last dimension of `tx_velocities` must equal 3")
-
-        if rx_velocities is None:
-            rx_velocities = [0.,0.,0.]
-        rx_velocities = tf.cast(rx_velocities, rdtype)
-        rx_velocities = expand_to_rank(rx_velocities, 3, 0)
-        if rx_velocities.shape[2] != 3:
+        if rx_velocities.shape[1] != 3:
             raise ValueError("Last dimension of `rx_velocities` must equal 3")
-
-        sampling_frequency = tf.cast(sampling_frequency, rdtype)
         if sampling_frequency <= 0.0:
             raise ValueError("The sampling frequency must be positive")
-
-        num_time_steps = tf.cast(num_time_steps, tf.int32)
         if num_time_steps <= 0:
-            msg = "The number of time samples must a positive integer"
-            raise ValueError(msg)
+            raise ValueError("The number of time samples must a positive integer")
 
         # Drop previous time step dimension, if any
-        if tf.rank(self.a) == 7:
-            self.a = self.a[...,0]
+        if self.a.ndim == 4:
+            self.a = self.a[:, :, :, 0]
 
-        # [batch_size, num_rx, num_tx, max_num_paths, 3]
-        # or
-        # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, 3]
+        # (num_rx, num_tx, max_num_paths, 3)
         k_t = r_hat(self.theta_t, self.phi_t)
         k_r = r_hat(self.theta_r, self.phi_r)
 
-        if self._scene.synthetic_array:
-            # [batch_size, num_rx, 1, num_tx, 1, max_num_paths, 3]
-            k_t = tf.expand_dims(tf.expand_dims(k_t, axis=2), axis=4)
-            # [batch_size, num_rx, 1, num_tx, 1, max_num_paths, 3]
-            k_r = tf.expand_dims(tf.expand_dims(k_r, axis=2), axis=4)
-
         # Expand rank of the speed vector for broadcasting with k_r
-        # [batch_dim, 1, 1, num_tx, 1, 1, 3]
-        tx_velocities = insert_dims(insert_dims(tx_velocities, 2,1), 2,4)
-        # [batch_dim, num_rx, 1, 1, 1, 1, 3]
-        rx_velocities = insert_dims(rx_velocities, 4, 2)
+        # (1, num_tx, 1, 3)
+        tx_velocities = np.expand_dims(tx_velocities, (0, 1, 3, 4))
+        # (num_rx,  1, 1, 3)
+        rx_velocities = np.expand_dims(rx_velocities, (1, 2, 3, 4))
 
         # Generate time steps
-        # [num_time_steps]
-        ts = tf.range(num_time_steps, dtype=rdtype)
+        # (num_time_steps,)
+        ts = np.arange(num_time_steps, dtype=np.float_)
         ts = ts / sampling_frequency
 
         # Compute the Doppler shift
-        # [batch_dim, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        # or
-        # [batch_dim, num_rx, 1, num_tx, 1, max_num_paths]
+        # (num_rx, num_tx, max_num_paths)
         tx_ds = two_pi*dot(tx_velocities, k_t)/self._scene.wavelength
         rx_ds = two_pi*dot(rx_velocities, k_r)/self._scene.wavelength
         ds = tx_ds + rx_ds
 
         # Add Doppler shifts due to movement of scene objects
-        if self._scene.synthetic_array:
-            # Create dummy dims for tx and rx antennas
-            # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-            ds += two_pi*self.doppler[..., tf.newaxis, :, tf.newaxis, :]
-        else:
-            ds += two_pi*self.doppler
+        ds += two_pi*self.doppler
 
         # Expand for the time sample dimension
-        # [batch_dim, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, 1]
-        # or
-        # [batch_dim, num_rx, 1, num_tx, 1, max_num_paths, 1]
-        ds = tf.expand_dims(ds, axis=-1)
+        # (num_rx, num_tx, max_num_paths, 1)
+        ds = np.expand_dims(ds, axis=-1)
         # Expand time steps for broadcasting
-        # [1, 1, 1, 1, 1, 1, num_time_steps]
-        ts = expand_to_rank(ts, tf.rank(ds), 0)
-        # [batch_dim, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths,
-        #   num_time_steps]
-        # or
-        # [batch_dim, num_rx, 1, num_tx, 1, max_num_paths, num_time_steps]
+        # (1, 1, 1, num_time_steps)
+        ts = expand_to_rank(ts, ds.ndim, 0)
+        # (num_rx, num_tx, max_num_paths, num_time_steps)
         ds = ds*ts
-        exp_ds = tf.exp(tf.complex(zeror, ds))
+        exp_ds = np.exp(1j*ds)
 
         # Apply Doppler shift
         # Expand with time dimension
-        # [batch_dim, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, 1]
-        a = tf.expand_dims(self.a, axis=-1)
+        # (num_rx, num_tx, max_num_paths, 1)
+        a = np.expand_dims(self.a, axis=-1)
 
         # Manual broadcast last dimension
-        a = tf.repeat(a, exp_ds.shape[6], -1)
+        a = np.repeat(a, exp_ds.shape[-1], -1)
 
         a = a*exp_ds
 
         self.a = a
-
-    @property
-    def reverse_direction(self):
-        r"""
-        bool : If set to `True`, swaps receivers and transmitters
-        """
-        return self._reverse_direction
-
-    @reverse_direction.setter
-    def reverse_direction(self, v):
-
-        if v == self._reverse_direction:
-            return
-
-        if tf.rank(self.a) == 6:
-            self.a = tf.transpose(self.a, perm=[0,3,4,1,2,5])
-        else:
-            self.a = tf.transpose(self.a, perm=[0,3,4,1,2,5,6])
-
-        if self._scene.synthetic_array:
-            self.tau = tf.transpose(self.tau, perm=[0,2,1,3])
-            self._min_tau = tf.transpose(self._min_tau, perm=[0,2,1,3])
-            self.theta_t = tf.transpose(self.theta_t, perm=[0,2,1,3])
-            self.phi_t = tf.transpose(self.phi_t, perm=[0,2,1,3])
-            self.theta_r = tf.transpose(self.theta_r, perm=[0,2,1,3])
-            self.phi_r = tf.transpose(self.phi_r, perm=[0,2,1,3])
-            self.doppler = tf.transpose(self.doppler, perm=[0,2,1,3])
-        else:
-            self.tau = tf.transpose(self.tau, perm=[0,3,4,1,2,5])
-            self._min_tau = tf.transpose(self._min_tau, perm=[0,3,4,1,2,5])
-            self.theta_t = tf.transpose(self.theta_t, perm=[0,3,4,1,2,5])
-            self.phi_t = tf.transpose(self.phi_t, perm=[0,3,4,1,2,5])
-            self.theta_r = tf.transpose(self.theta_r, perm=[0,3,4,1,2,5])
-            self.phi_r = tf.transpose(self.phi_r, perm=[0,3,4,1,2,5])
-            self.doppler = tf.transpose(self.doppler, perm=[0,3,4,1,2,5])
-
-        self._reverse_direction = v
 
     def cir(self,
             los=True,
@@ -671,30 +597,30 @@ class Paths:
 
         Output
         -------
-        a : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, num_time_steps], tf.complex
+        a : (num_rx, num_tx, max_num_paths, num_time_steps), np.complex_
             Path coefficients
 
-        tau : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths] or [batch_size, num_rx, num_tx, max_num_paths], tf.float
+        tau : (num_rx, num_tx, max_num_paths), np.float_
             Path delays
         """
 
         ris = ris and (len(self._scene.ris) > 0)
 
         # Select only the desired effects
-        types = self.types[0]
-        # [max_num_paths]
-        selection_mask = tf.fill(tf.shape(types), False)
+        types = self.types
+        # (max_num_paths,)
+        selection_mask = np.full(types.shape, False)
         if los:
-            selection_mask = tf.logical_or(selection_mask,
+            selection_mask = np.logical_or(selection_mask,
                                            types == Paths.LOS)
         if reflection:
-            selection_mask = tf.logical_or(selection_mask,
+            selection_mask = np.logical_or(selection_mask,
                                            types == Paths.SPECULAR)
         if diffraction:
-            selection_mask = tf.logical_or(selection_mask,
+            selection_mask = np.logical_or(selection_mask,
                                            types == Paths.DIFFRACTED)
         if scattering:
-            selection_mask = tf.logical_or(selection_mask,
+            selection_mask = np.logical_or(selection_mask,
                                            types == Paths.SCATTERED)
         if ris:
             if cluster_ris_paths:
@@ -703,19 +629,10 @@ class Paths:
                 # This process is performed separately for each RIS.
                 #
                 # Extract paths coefficients and delays corresponding to RIS
-                # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-                # num_ris_paths, num_time_steps]
-                a_ris = tf.gather(self.a, tf.where(types == Paths.RIS)[:,0],
-                                  axis=-2)
-                # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-                #   num_ris_paths] or [batch_size, num_rx, num_tx,num_ris_paths]
-                tau_ris = tf.gather(self.tau, tf.where(types == Paths.RIS)[:,0],
-                                axis=-1)
-                # [batch_size, num_rx, num_rx_ant/1, num_tx, num_tx_ant/1,
-                # num_ris_paths]
-                if self._scene.synthetic_array:
-                    tau_ris = tf.expand_dims(tau_ris, 2)
-                    tau_ris = tf.expand_dims(tau_ris, 4)
+                # (num_rx, num_tx, num_ris_paths, num_time_steps)
+                a_ris = self.a[:, :, types == Paths.RIS, :]
+                # (num_rx, num_tx, num_ris_paths)
+                tau_ris = self.tau[:, :, types == Paths.RIS]
                 # Loop over RIS to combine their path coefficients and delays
                 index_start = 0
                 index_end = 0
@@ -725,34 +642,26 @@ class Paths:
                     index_end = index_start + ris_.num_cells
                     # Extract the path coefficients and delays corresponding to
                     # the paths from RIS
-                    # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-                    # num_this_ris_path, num_time_steps]
-                    a_this_ris = a_ris[..., index_start:index_end,:]
-                    # [batch_size, num_rx, num_rx_ant/1, num_tx, num_tx_ant/1,
-                    # num_this_ris_path]
-                    tau_this_ris = tau_ris[...,index_start:index_end]
+                    # (num_rx, num_tx, num_this_ris_path, num_time_steps)
+                    a_this_ris = a_ris[..., index_start:index_end, :]
+                    # (num_rx, num_tx, num_this_ris_path)
+                    tau_this_ris = tau_ris[..., index_start:index_end]
                     # Average the delays
-                    # [batch_size, num_rx, num_rx_ant/1, num_tx, num_tx_ant/1,1]
-                    mean_tau_this_ris = tf.reduce_mean(tau_this_ris, axis=-1,
-                                                       keepdims=True)
+                    # (num_rx, num_tx, 1)
+                    mean_tau_this_ris = np.mean(tau_this_ris, axis=-1, keepdims=True)
                     # Phase shift due to propagation delay.
                     # We subtract the average delay to ensure the propagation
                     # delay is not applied, only the phase shift due to the
                     # RIS geometry
-                    # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-                    # num_this_ris_path]
+                    # (num_rx, num_tx, num_this_ris_path)
                     tau_this_ris -= mean_tau_this_ris
-                    ps = tf.complex(tf.zeros_like(tau_this_ris),
-                                    -2.*PI*self._scene.frequency*tau_this_ris)
-                    ps = ps[...,tf.newaxis]
-                    # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-                    # num_this_ris_path, num_time_steps]
-                    a_this_ris = a_this_ris*tf.exp(ps)
+                    ps = np.zeros_like(tau_this_ris) - 2.j*PI*self._scene.frequency*tau_this_ris
+                    ps = ps[..., np.newaxis]
+                    # (num_rx, num_tx, num_this_ris_path, num_time_steps)
+                    a_this_ris = a_this_ris * np.exp(ps)
                     # Combine the paths coefficients and delays
-                    # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, 1,
-                    # num_time_steps]
-                    a_this_ris = tf.reduce_sum(a_this_ris, axis=-2,
-                                               keepdims=True)
+                    # (num_rx, num_tx, 1, num_time_steps)
+                    a_this_ris = np.sum(a_this_ris, axis=-2, keepdims=True)
 
                     #
                     a_combined_ris_all.append(a_this_ris)
@@ -760,47 +669,35 @@ class Paths:
                     #
                     index_start = index_end
                 #
-                # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ris,
-                # num_time_steps]
-                a_combined_ris_all = tf.concat(a_combined_ris_all, axis=-2)
-                # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ris]
-                tau_combined_ris_all = tf.concat(tau_combined_ris_all, axis=-1)
+                # (num_rx, num_tx, num_ris, num_time_steps)
+                a_combined_ris_all = np.concatenate(a_combined_ris_all, axis=-2)
+                # (num_rx, num_tx, num_ris)
+                tau_combined_ris_all = np.concatenate(tau_combined_ris_all, axis=-1)
             else:
-                selection_mask = tf.logical_or(selection_mask,
+                selection_mask = np.logical_or(selection_mask,
                                                types == Paths.RIS)
 
         # Extract selected paths
-        # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths,
-        #   num_time_steps]
-        a = tf.gather(self.a, tf.where(selection_mask)[:,0], axis=-2)
-        # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        #   or [batch_size, num_rx, num_tx, max_num_paths]
-        tau = tf.gather(self.tau, tf.where(selection_mask)[:,0], axis=-1)
-        if self._scene.synthetic_array:
-            tau_ = tf.expand_dims(tau, 2)
-            tau_ = tf.expand_dims(tau_, 4)
-        else:
-            tau_ = tau
+        # (num_rx, num_tx, num_selected_paths, num_time_steps)
+        a = self.a[:, :, selection_mask, :]
+        # (num_rx, num_tx, num_selected_paths)
+        tau = self.tau[:, :, selection_mask]
 
         # If RIS paths were combined, add the results of the clustering
         if ris and cluster_ris_paths:
-            # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-            #   max_num_paths, num_time_steps]
-            a = tf.concat([a, a_combined_ris_all], axis=-2)
-            # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant,
-            #   max_num_paths]
-            tau_ = tf.concat([tau_, tau_combined_ris_all], axis=-1)
+            # (num_rx, num_tx, num_selected_paths, num_time_steps)
+            a = np.concatenate([a, a_combined_ris_all], axis=-2)
+            # (num_rx, num_tx, num_selected_paths)
+            tau = np.concatenate([tau, tau_combined_ris_all], axis=-1)
 
         # Compute base-band CIR
-        # [batch_size, num_rx, 1/num_rx_ant, num_tx, 1/num_tx_ant,
-        #   max_num_paths, num_time_steps, 1]
-        tau_ = tf.expand_dims(tau_, -1)
-        phase = tf.complex(tf.zeros_like(tau_),
-                           -2*PI*self._scene.frequency*tau_)
+        # (num_rx, num_tx, num_selected_paths, 1)
+        tau = np.expand_dims(tau, -1)
+        phase = np.zeros_like(tau) - 2.j*PI*self._scene.frequency*tau
         # Manual repeat along the time step dimension as high-dimensional
         # broadcast is not possible
-        phase = tf.repeat(phase, a.shape[-1], axis=-1)
-        a = a*tf.exp(phase)
+        phase = np.repeat(phase, a.shape[-1], axis=-1)
+        a = a*np.exp(phase)
 
         if num_paths is not None:
             a, tau = self.pad_or_crop(a, tau, num_paths)
@@ -815,7 +712,7 @@ class Paths:
     def targets_sources_mask(self):
         # pylint: disable=line-too-long
         """
-        [num_targets, num_sources, max_num_paths], tf.bool : Set to `False` for non-existent paths.
+        (num_targets, num_sources, max_num_paths), np.bool_ : Set to `False` for non-existent paths.
         When there are multiple transmitters or receivers, path counts may vary between links. This is used to identify non-existent paths.
         For such paths, the channel coefficient is set to `0` and the delay to `-1`.
         Same as `mask`, but for sources and targets.
@@ -830,7 +727,7 @@ class Paths:
     def vertices(self):
         # pylint: disable=line-too-long
         """
-        [max_depth, num_targets, num_sources, max_num_paths, 3], tf.float : Positions of intersection points.
+        (max_depth, num_targets, num_sources, max_num_paths, 3), np.float_ : Positions of intersection points.
         """
         return self._vertices
 
@@ -842,7 +739,7 @@ class Paths:
     def objects(self):
         # pylint: disable=line-too-long
         """
-        [max_depth, num_targets, num_sources, max_num_paths], tf.int : Indices of the intersected scene objects
+        (max_depth, num_targets, num_sources, max_num_paths), np.int_ : Indices of the intersected scene objects
         or wedges. Paths with depth lower than ``max_depth`` are padded with `-1`.
         """
         return self._objects
@@ -869,51 +766,50 @@ class Paths:
         more_types = more_paths.types
 
         # The paths to merge must have the same number of sources and targets
-        assert more_paths.targets.shape[0] == self.targets.shape[0],\
-            "Paths to merge must have same number of targets"
-        assert more_paths.sources.shape[0] == self.sources.shape[0],\
-            "Paths to merge must have same number of targets"
+        if more_paths.sources.shape[0] != self.sources.shape[0]:
+            raise ValueError("Paths to merge must have same number of sources")
+        if more_paths.sources.shape[0] != self.sources.shape[0]:
+            raise ValueError("Paths to merge must have same number of targets")
 
         # Pad the paths with the lowest depth
         padding = self.vertices.shape[0] - more_vertices.shape[0]
         if padding > 0:
-            more_vertices = tf.pad(more_vertices,
+            more_vertices = np.pad(more_vertices,
                                    [[0,padding],[0,0],[0,0],[0,0],[0,0]],
-                                   constant_values=tf.zeros((),
-                                                            dtype.real_dtype))
-            more_objects = tf.pad(more_objects,
+                                   constant_values=0.)
+            more_objects = np.pad(more_objects,
                                   [[0,padding],[0,0],[0,0],[0,0]],
                                   constant_values=-1)
         elif padding < 0:
             padding = -padding
-            self.vertices = tf.pad(self.vertices,
+            self.vertices = np.pad(self.vertices,
                                    [[0,padding],[0,0],[0,0],[0,0],[0,0]],
-                            constant_values=tf.zeros((), dtype.real_dtype))
-            self.objects = tf.pad(self.objects,
+                                   constant_values=tf.zeros((), dtype.real_dtype))
+            self.objects = np.pad(self.objects,
                                   [[0,padding],[0,0],[0,0],[0,0]],
                                   constant_values=-1)
 
         # Merge types
-        if tf.rank(self.types) == 0:
-            merged_types = tf.repeat(self.types, tf.shape(self.vertices)[3])
+        if self.types.ndim == 0:
+            merged_types = np.repeat(self.types, self.vertices.shape[3])
         else:
             merged_types = self.types
-        if tf.rank(more_types) == 0:
-            more_types = tf.repeat(more_types, tf.shape(more_vertices)[3])
+        if more_types.ndim == 0:
+            more_types = np.repeat(more_types, more_vertices.shape[3])
 
-        self.types = tf.concat([merged_types, more_types], axis=0)
+        self.types = np.concatenate([merged_types, more_types], axis=0)
 
         # Concatenate all
-        self.a = tf.concat([self.a, more_paths.a], axis=2)
-        self.tau = tf.concat([self.tau, more_paths.tau], axis=2)
-        self.theta_t = tf.concat([self.theta_t, more_paths.theta_t], axis=2)
-        self.phi_t = tf.concat([self.phi_t, more_paths.phi_t], axis=2)
-        self.theta_r = tf.concat([self.theta_r, more_paths.theta_r], axis=2)
-        self.phi_r = tf.concat([self.phi_r, more_paths.phi_r], axis=2)
-        self.mask = tf.concat([self.mask, more_paths.mask], axis=2)
-        self.vertices = tf.concat([self.vertices, more_vertices], axis=3)
-        self.objects = tf.concat([self.objects, more_objects], axis=3)
-        self.doppler = tf.concat([self.doppler, more_paths.doppler], axis=2)
+        self.a = np.concatenate([self.a, more_paths.a], axis=2)
+        self.tau = np.concatenate([self.tau, more_paths.tau], axis=2)
+        self.theta_t = np.concatenate([self.theta_t, more_paths.theta_t], axis=2)
+        self.phi_t = np.concatenate([self.phi_t, more_paths.phi_t], axis=2)
+        self.theta_r = np.concatenate([self.theta_r, more_paths.theta_r], axis=2)
+        self.phi_r = np.concatenate([self.phi_r, more_paths.phi_r], axis=2)
+        self.mask = np.concatenate([self.mask, more_paths.mask], axis=2)
+        self.vertices = np.concatenate([self.vertices, more_vertices], axis=3)
+        self.objects = np.concatenate([self.objects, more_objects], axis=3)
+        self.doppler = np.concatenate([self.doppler, more_paths.doppler], axis=2)
 
         return self
 
@@ -930,44 +826,38 @@ class Paths:
         self.set_los_path_type()
 
         # Add dummy-dimension for batch_size
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.mask = tf.expand_dims(self.mask, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.a = tf.expand_dims(self.a, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.tau = tf.expand_dims(self.tau, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.theta_t = tf.expand_dims(self.theta_t, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.phi_t = tf.expand_dims(self.phi_t, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.theta_r = tf.expand_dims(self.theta_r, axis=0)
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-        self.phi_r = tf.expand_dims(self.phi_r, axis=0)
-        # [1, max_num_paths]
-        self.types = tf.expand_dims(self.types, axis=0)
-        # [1, max_num_paths]
-        self.doppler = tf.expand_dims(self.doppler, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.mask = np.expand_dims(self.mask, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.a = np.expand_dims(self.a, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.tau = np.expand_dims(self.tau, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.theta_t = np.expand_dims(self.theta_t, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.phi_t = np.expand_dims(self.phi_t, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.theta_r = np.expand_dims(self.theta_r, axis=0)
+        # (1, num_rx, num_tx, max_num_paths)
+        self.phi_r = np.expand_dims(self.phi_r, axis=0)
+        # (1, max_num_paths)
+        self.types = np.expand_dims(self.types, axis=0)
+        # (1, max_num_paths)
+        self.doppler = np.expand_dims(self.doppler, axis=0)
 
         tau = self.tau
         if tau.shape[-1] == 0: # No paths
-            self._min_tau = tf.zeros_like(tau)
+            self._min_tau = np.zeros_like(tau)
         else:
-            zero = tf.zeros((), tau.dtype)
-            inf = tf.cast(np.inf, tau.dtype)
-            tau = tf.where(tau < zero, inf, tau)
-            if self._scene.synthetic_array:
-                # [1, num_rx, num_tx, 1]
-                min_tau = tf.reduce_min(tau, axis=3, keepdims=True)
-            else:
-                # [1, num_rx, 1, num_tx, 1, 1]
-                min_tau = tf.reduce_min(tau, axis=(2, 4, 5), keepdims=True)
-            min_tau = tf.where(tf.math.is_inf(min_tau), zero, min_tau)
+            tau = np.where(tau < 0, np.inf, tau)
+            # (1, num_rx, num_tx, 1)
+            min_tau = np.min(tau, axis=3, keepdims=True)
+            min_tau = np.where(min_tau == np.inf, 0., min_tau)
             self._min_tau = min_tau
 
         # Add the time steps dimension
-        # [1, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths, 1]
-        self.a = tf.expand_dims(self.a, axis=-1)
+        # (1, num_rx, num_tx, max_num_paths, 1)
+        self.a = np.expand_dims(self.a, axis=-1)
 
         # Normalize delays
         self.normalize_delays = True
@@ -977,24 +867,22 @@ class Paths:
         Flags paths that do not hit any object as LoS
         """
 
-        # [max_depth, num_targets, num_sources, num_paths]
+        # (max_depth, num_targets, num_sources, num_paths)
         objects = self.objects
-        # [num_targets, num_sources, num_paths]
+        # (num_targets, num_sources, num_paths)
         mask = self.targets_sources_mask
 
         if objects.shape[3] > 0:
-            # [num_targets, num_sources, num_paths]
-            los_path = tf.reduce_all(objects == -1, axis=0)
-            # [num_targets, num_sources, num_paths]
-            los_path = tf.logical_and(los_path, mask)
-            # [num_paths]
-            los_path = tf.reduce_any(los_path, axis=(0,1))
-            # [[1]]
-            los_path_index = tf.where(los_path)
-            updates = tf.repeat(Paths.LOS, tf.shape(los_path_index)[0], 0)
-            self.types = tf.tensor_scatter_nd_update(self.types,
-                                                        los_path_index,
-                                                        updates)
+            # (num_targets, num_sources, num_paths)
+            los_path = np.all(objects == -1, axis=0)
+            # (num_targets, num_sources, num_paths)
+            los_path = np.logical_and(los_path, mask)
+            # (num_paths,)
+            los_path = np.any(los_path, axis=(0,1))
+            # (1,)
+            los_path_index = np.where(los_path)
+            updates = np.repeat(Paths.LOS, los_path_index.shape[0], 0)
+            self.types[los_path_index] = updates
 
     def pad_or_crop(self, a, tau, k):
         """
@@ -1008,31 +896,18 @@ class Paths:
             # Compute indices of the k strongest paths
             # As is independent of the number of time steps,
             # Therefore, we use only the first one a[...,0].
-            # ind : [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, k]
-            _, ind = tf.math.top_k(tf.abs(a[...,0]), k=k, sorted=True)
+            # ind : (num_rx, num_tx, k)
+            ind = np.argsort(np.abs(a[..., 0]), axis=-1)[..., -k:]
 
             # Gather the strongest paths
-            # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, k, num_time_steps]
-            a = tf.gather(a, ind, batch_dims=5)
+            # (num_rx, num_tx, k, num_time_steps)
+            a = a[ind, :]
 
-            # Gather the corresponding path delays
-            # Synthetic array
-            if tf.rank(tau)==4:
-                # tau : [batch_size, num_rx, num_tx, max_num_paths]
+            # tau : (num_rx, num_tx, max_num_paths)
 
-                # Get relevant indices
-                # [batch_size, num_rx, num_tx, k]
-                ind_tau = ind[:,:,0,:,0]
-
-                # [batch_size, num_rx, num_tx, k]
-                tau = tf.gather(tau, ind_tau, batch_dims=3)
-
-            # Non-synthetic array
-            else:
-                # tau: [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, max_num_paths]
-
-                # [batch_size, num_rx, num_rx_ant, num_tx, num_tx_ant, k]
-                tau = tf.gather(tau, ind, batch_dims=5)
+            # Get relevant delays
+            # (num_rx, num_tx, k)
+            tau = tau[ind]
 
         # Pad
         elif k>max_num_paths:
@@ -1040,11 +915,9 @@ class Paths:
             pad_size = k-max_num_paths
 
             # Paddings for the paths gains
-            paddings = tf.constant([[0, 0] if i != 5 else [0, pad_size] for i in range(7)])
-            a = tf.pad(a, paddings=paddings, mode='CONSTANT', constant_values=0)
+            a = np.pad(a, [[0, 0], [0, 0], [0, pad_size], [0, 0]], 'constant', constant_values=0)
 
             # Paddings for the delays (-1 by Sionna convention)
-            paddings = tf.constant([[0, 0] if i != tf.rank(tau)-1 else [0, pad_size] for i in range(tf.rank(tau))])
-            tau = tf.pad(tau, paddings=paddings, mode='CONSTANT', constant_values=-1)
+            tau = np.pad(tau, [[0, 0], [0, 0], [0, pad_size]], 'constant', constant_values=-1)
 
         return a, tau
