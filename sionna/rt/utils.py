@@ -10,6 +10,7 @@ import numpy as np
 import mitsuba as mi
 import drjit as dr
 
+
 def rotation_matrix(angles):
     r"""
     Computes rotation matrices as defined in :eq:`rotation`
@@ -31,9 +32,9 @@ def rotation_matrix(angles):
         Rotation matrices
     """
 
-    a = angles[...,0]
-    b = angles[...,1]
-    c = angles[...,2]
+    a = angles[..., 0]
+    b = angles[..., 1]
+    c = angles[..., 2]
     cos_a = np.cos(a)
     cos_b = np.cos(b)
     cos_c = np.cos(c)
@@ -41,23 +42,24 @@ def rotation_matrix(angles):
     sin_b = np.sin(b)
     sin_c = np.sin(c)
 
-    r_11 = cos_a*cos_b
-    r_12 = cos_a*sin_b*sin_c - sin_a*cos_c
-    r_13 = cos_a*sin_b*cos_c + sin_a*sin_c
+    r_11 = cos_a * cos_b
+    r_12 = cos_a * sin_b * sin_c - sin_a * cos_c
+    r_13 = cos_a * sin_b * cos_c + sin_a * sin_c
     r_1 = np.stack([r_11, r_12, r_13], axis=-1)
 
-    r_21 = sin_a*cos_b
-    r_22 = sin_a*sin_b*sin_c + cos_a*cos_c
-    r_23 = sin_a*sin_b*cos_c - cos_a*sin_c
+    r_21 = sin_a * cos_b
+    r_22 = sin_a * sin_b * sin_c + cos_a * cos_c
+    r_23 = sin_a * sin_b * cos_c - cos_a * sin_c
     r_2 = np.stack([r_21, r_22, r_23], axis=-1)
 
     r_31 = -sin_b
-    r_32 = cos_b*sin_c
-    r_33 = cos_b*cos_c
+    r_32 = cos_b * sin_c
+    r_33 = cos_b * cos_c
     r_3 = np.stack([r_31, r_32, r_33], axis=-1)
 
     rot_mat = np.stack([r_1, r_2, r_3], axis=-2)
     return rot_mat
+
 
 def rotate(p, angles, inverse=False):
     r"""
@@ -90,16 +92,17 @@ def rotate(p, angles, inverse=False):
     # Rotation matrix
     # (..., 3, 3)
     rot_mat = rotation_matrix(angles)
-    num_extra_dims = max(0, p.dims+1 - rot_mat.dims)
-    rot_mat = rot_mat.reshape(((1,)*num_extra_dims, *rot_mat.shape[-2:]))
+    num_extra_dims = max(0, p.dims + 1 - rot_mat.dims)
+    rot_mat = rot_mat.reshape(((1,) * num_extra_dims, *rot_mat.shape[-2:]))
 
     # Rotation around ``center``
     # (..., 3)
     if inverse:
         rot_mat = np.transpose(rot_mat, axes=(-1, -2))
-    rot_p = np.einsum('...ij,...j->...i', rot_mat, p)
+    rot_p = np.einsum("...ij,...j->...i", rot_mat, p)
 
     return rot_p
+
 
 def theta_phi_from_unit_vec(v):
     r"""
@@ -119,22 +122,23 @@ def theta_phi_from_unit_vec(v):
     phi : (...), np.float_
         Azimuth angles :math:`\varphi`
     """
-    x = v[...,0]
-    y = v[...,1]
-    z = v[...,2]
+    x = v[..., 0]
+    y = v[..., 1]
+    z = v[..., 2]
 
     # If v = z, then x = 0 and y = 0. In this case, atan2 is not differentiable,
     # leading to NaN when computing the gradients.
     # The following lines force x to one this case. Note that this does not
     # impact the output meaningfully, as in that case theta = 0 and phi can
     # take any value.
-    is_unit_z = np.logical_and(x == 0., y == 0.)
+    is_unit_z = np.logical_and(x == 0.0, y == 0.0)
     is_unit_z = is_unit_z.astype(x.dtype)
     x += is_unit_z
 
     theta = np.arccos(z)
     phi = np.arctan2(y, x)
     return theta, phi
+
 
 def r_hat(theta, phi):
     r"""
@@ -154,10 +158,12 @@ def r_hat(theta, phi):
     rho_hat : ``phi.shape`` + [3], np.float_
         Vector :math:`\hat{\mathbf{r}}(\theta, \phi)`  on unit sphere
     """
-    rho_hat = np.stack([np.sin(theta)*np.cos(phi),
-                        np.sin(theta)*np.sin(phi),
-                        np.cos(theta)], axis=-1)
+    rho_hat = np.stack(
+        [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)],
+        axis=-1,
+    )
     return rho_hat
+
 
 def theta_hat(theta, phi):
     r"""
@@ -178,10 +184,11 @@ def theta_hat(theta, phi):
     theta_hat : ``phi.shape`` + [3], np.float_
         Vector :math:`\hat{\boldsymbol{\theta}}(\theta, \varphi)`
     """
-    x = np.cos(theta)*np.cos(phi)
-    y = np.cos(theta)*np.sin(phi)
+    x = np.cos(theta) * np.cos(phi)
+    y = np.cos(theta) * np.sin(phi)
     z = -np.sin(theta)
-    return np.stack([x,y,z], -1)
+    return np.stack([x, y, z], -1)
+
 
 def phi_hat(phi):
     r"""
@@ -202,7 +209,8 @@ def phi_hat(phi):
     x = -np.sin(phi)
     y = np.cos(phi)
     z = np.zeros_like(x)
-    return np.stack([x,y,z], -1)
+    return np.stack([x, y, z], -1)
+
 
 def cross(u, v):
     r"""
@@ -221,19 +229,20 @@ def cross(u, v):
     : (..., 3)
         Cross product between ``u`` and ``v``
     """
-    u_x = u[...,0]
-    u_y = u[...,1]
-    u_z = u[...,2]
+    u_x = u[..., 0]
+    u_y = u[..., 1]
+    u_z = u[..., 2]
 
-    v_x = v[...,0]
-    v_y = v[...,1]
-    v_z = v[...,2]
+    v_x = v[..., 0]
+    v_y = v[..., 1]
+    v_z = v[..., 2]
 
-    w = np.stack([u_y*v_z - u_z*v_y,
-                  u_z*v_x - u_x*v_z,
-                  u_x*v_y - u_y*v_x], axis=-1)
+    w = np.stack(
+        [u_y * v_z - u_z * v_y, u_z * v_x - u_x * v_z, u_x * v_y - u_y * v_x], axis=-1
+    )
 
     return w
+
 
 def dot(u, v, keepdim=False, clip=False):
     r"""
@@ -262,12 +271,13 @@ def dot(u, v, keepdim=False, clip=False):
         The last dimension is removed if ``keepdim``
         is set to `False`.
     """
-    res = np.sum(u*v, axis=-1, keepdims=keepdim)
+    res = np.sum(u * v, axis=-1, keepdims=keepdim)
     if clip:
-        res = np.clip(res, -1., 1.)
+        res = np.clip(res, -1.0, 1.0)
     return res
 
-def outer(u,v):
+
+def outer(u, v):
     r"""
     Computes the outer product between u and v
 
@@ -285,6 +295,7 @@ def outer(u,v):
         Outer product between ``u`` and ``v``
     """
     return u[..., np.newaxis] * v[..., np.newaxis, :]
+
 
 def normalize(v):
     r"""
@@ -304,10 +315,11 @@ def normalize(v):
         Norm of the unnormalized vector
     """
     norm = np.linalg.norm(v, axis=-1, keepdims=True)
-    norm = np.where(norm == 0., np.inf, norm)
+    norm = np.where(norm == 0.0, np.inf, norm)
     n_v = v / norm
     norm = np.squeeze(norm, axis=-1)
     return n_v, norm
+
 
 def moller_trumbore(o, d, p0, p1, p2, epsilon):
     r"""
@@ -347,23 +359,23 @@ def moller_trumbore(o, d, p0, p1, p2, epsilon):
     det = dot(e1, pvec, keepdim=True)
 
     # If the ray is parallel to the triangle, then det = 0.
-    hit = np.abs(det) > 0.
+    hit = np.abs(det) > 0.0
 
     # ..., 3)
     tvec = o - p0
     # (..., 1)
-    u = dot(tvec, pvec, keepdim=True) / np.where(det == 0., np.inf, det)
+    u = dot(tvec, pvec, keepdim=True) / np.where(det == 0.0, np.inf, det)
     # (..., 1)
-    hit = hit & (u >= -epsilon) & (u <= 1. + epsilon)
+    hit = hit & (u >= -epsilon) & (u <= 1.0 + epsilon)
 
     # (..., 3)
     qvec = cross(tvec, e1)
     # (..., 1)
-    v = dot(d, qvec, keepdim=True) / np.where(det == 0., np.inf, det)
+    v = dot(d, qvec, keepdim=True) / np.where(det == 0.0, np.inf, det)
     # (..., 1)
-    hit = hit & (v >= -epsilon) & (u + v <= 1. + epsilon)
+    hit = hit & (v >= -epsilon) & (u + v <= 1.0 + epsilon)
     # (..., 1)
-    t = dot(e2, qvec, keepdim=True) / np.where(det == 0., np.inf, det)
+    t = dot(e2, qvec, keepdim=True) / np.where(det == 0.0, np.inf, det)
     # (..., 1)
     hit = hit & (t >= epsilon)
 
@@ -372,6 +384,7 @@ def moller_trumbore(o, d, p0, p1, p2, epsilon):
     hit = np.squeeze(hit, axis=-1)
 
     return t, hit
+
 
 def component_transform(e_s, e_p, e_i_s, e_i_p):
     """
@@ -405,6 +418,7 @@ def component_transform(e_s, e_p, e_i_s, e_i_p):
     r = np.stack([r1, r2], axis=-2)
     return r
 
+
 def mi_to_np_ndarray(mi_tensor, dtype):
     """
     Get a numpy ndarray from a Mitsuba/DrJIT tensor
@@ -420,6 +434,7 @@ def mi_to_np_ndarray(mi_tensor, dtype):
     else:
         np_ndarray = mi_tensor.numpy().astype(dtype)
     return np_ndarray
+
 
 def gen_orthogonal_vector(k, epsilon):
     """
@@ -439,17 +454,18 @@ def gen_orthogonal_vector(k, epsilon):
         Vector orthogonal to ``k``
     """
     rdtype = k.dtype
-    extra_dims = max(0, k.ndim-1)
+    extra_dims = max(0, k.ndim - 1)
     ex = np.array([1.0, 0.0, 0.0], rdtype)
-    ex = ex.reshape((1,)*extra_dims + (3,))
+    ex = ex.reshape((1,) * extra_dims + (3,))
 
     ey = np.array([0.0, 1.0, 0.0], rdtype)
-    ey = ey.reshape((1,)*extra_dims + (3,))
+    ey = ey.reshape((1,) * extra_dims + (3,))
 
     n1 = cross(k, ex)
     n1_norm = np.linalg.norm(n1, axis=-1, keepdims=True)
     n2 = cross(k, ey)
     return np.where(n1_norm > epsilon, n1, n2)
+
 
 def compute_field_unit_vectors(k_i, k_r, n, epsilon, return_e_r=True):
     """
@@ -497,17 +513,17 @@ def compute_field_unit_vectors(k_i, k_r, n, epsilon, return_e_r=True):
     # It is required to detect such scenarios and define an arbitrary valid
     # e_i_s to fix an incidence plane, as the result from previous
     # computation leads to e_i_s = 0.
-    e_i_s = np.where(e_i_s_norm > epsilon, e_i_s,
-                     gen_orthogonal_vector(n, epsilon))
+    e_i_s = np.where(e_i_s_norm > epsilon, e_i_s, gen_orthogonal_vector(n, epsilon))
 
-    e_i_s,_ = normalize(e_i_s)
-    e_i_p,_ = normalize(cross(e_i_s, k_i))
+    e_i_s, _ = normalize(e_i_s)
+    e_i_p, _ = normalize(cross(e_i_s, k_i))
     if not return_e_r:
         return e_i_s, e_i_p
     else:
         e_r_s = e_i_s
-        e_r_p,_ = normalize(cross(e_r_s, k_r))
+        e_r_p, _ = normalize(cross(e_r_s, k_r))
         return e_i_s, e_i_p, e_r_s, e_r_p
+
 
 def reflection_coefficient(eta, cos_theta):
     """
@@ -529,17 +545,18 @@ def reflection_coefficient(eta, cos_theta):
     r_tm : Same as input, np.complex_
         Fresnel reflection coefficient for P direction
     """
-    cos_theta = cos_theta + 0.j
+    cos_theta = cos_theta + 0.0j
 
     # Fresnel equations
     a = cos_theta
-    b = np.sqrt(eta-1.+cos_theta**2)
-    r_te = (a-b) / np.where(a+b == 0., np.inf, a+b)
+    b = np.sqrt(eta - 1.0 + cos_theta**2)
+    r_te = (a - b) / np.where(a + b == 0.0, np.inf, a + b)
 
-    c = eta*a
+    c = eta * a
     d = b
-    r_tm = (c-d) / np.where(c+d == 0., np.inf, c+d)
+    r_tm = (c - d) / np.where(c + d == 0.0, np.inf, c + d)
     return r_te, r_tm
+
 
 def paths_to_segments(paths):
     """
@@ -564,16 +581,15 @@ def paths_to_segments(paths):
     # Emit directly two lists of the beginnings and endings of line segments
     starts = []
     ends = []
-    for rx in range(vertices.shape[1]): # For each receiver
-        for tx in range(vertices.shape[2]): # For each transmitter
-            for p in range(vertices.shape[3]): # For each path depth
+    for rx in range(vertices.shape[1]):  # For each receiver
+        for tx in range(vertices.shape[2]):  # For each transmitter
+            for p in range(vertices.shape[3]):  # For each path depth
                 if not mask[rx, tx, p]:
                     continue
 
                 start = sources[tx]
                 i = 0
-                while ( (i < objects.shape[0])
-                    and (objects[i, rx, tx, p] != -1) ):
+                while (i < objects.shape[0]) and (objects[i, rx, tx, p] != -1):
                     end = vertices[i, rx, tx, p]
                     starts.append(start)
                     ends.append(end)
@@ -584,21 +600,24 @@ def paths_to_segments(paths):
                 ends.append(targets[rx])
     return starts, ends
 
+
 def scene_scale(scene):
     bbox = scene.mi_scene.bbox()
     tx_positions, rx_positions, ris_positions = {}, {}, {}
-    devices = ((scene.transmitters, tx_positions),
-               (scene.receivers, rx_positions),
-               (scene.ris, ris_positions)
-              )
+    devices = (
+        (scene.transmitters, tx_positions),
+        (scene.receivers, rx_positions),
+        (scene.ris, ris_positions),
+    )
     for source, destination in devices:
         for k, rd in source.items():
             p = rd.position.numpy()
             bbox.expand(p)
             destination[k] = p
 
-    sc = 2. * bbox.bounding_sphere().radius
+    sc = 2.0 * bbox.bounding_sphere().radius
     return sc, tx_positions, rx_positions, ris_positions, bbox
+
 
 def fibonacci_lattice(num_points, dtype=np.float_):
     """
@@ -618,17 +637,18 @@ def fibonacci_lattice(num_points, dtype=np.float_):
         Generated rectangular coordinates of the lattice points
     """
 
-    golden_ratio = (1.+np.sqrt(np.float64(5)))/2.
+    golden_ratio = (1.0 + np.sqrt(np.float64(5))) / 2.0
     ns = np.range(0, num_points, dtype=np.float64)
 
-    x = ns/golden_ratio
+    x = ns / golden_ratio
     x = x - np.floor(x)
-    y = ns/(num_points-1)
-    points = np.stack([x,y], axis=1)
+    y = ns / (num_points - 1)
+    points = np.stack([x, y], axis=1)
 
     points = points.astype(dtype)
 
     return points
+
 
 def cot(x):
     """
@@ -644,7 +664,8 @@ def cot(x):
         Cotangent of x
     """
     tan_x = np.tan(x)
-    return 1. / np.where(tan_x == 0., np.inf, tan_x)
+    return 1.0 / np.where(tan_x == 0.0, np.inf, tan_x)
+
 
 def sign(x):
     """
@@ -660,7 +681,8 @@ def sign(x):
     : (...), np.float_
         +1 if ``x`` is non-negative, -1 otherwise
     """
-    return (2. * (x >= 0.) - 1.).astype(x.dtype)
+    return (2.0 * (x >= 0.0) - 1.0).astype(x.dtype)
+
 
 def rot_mat_from_unit_vecs(a, b):
     r"""
@@ -687,7 +709,7 @@ def rot_mat_from_unit_vecs(a, b):
 
     # Deal with special case where a and b are parallel
     o = gen_orthogonal_vector(a, 1e-6)
-    k = np.where(np.sum(np.abs(k), axis=-1, keepdims=True) == 0., o, k)
+    k = np.where(np.sum(np.abs(k), axis=-1, keepdims=True) == 0.0, o, k)
 
     # Compute K matrix
     shape = np.concatenate([k.shape[:-1], [1]], axis=-1)
@@ -703,10 +725,11 @@ def rot_mat_from_unit_vecs(a, b):
     cos_theta = dot(a, b, clip=True)
     sin_theta = np.sin(np.arccos(cos_theta))
     extra_dims = max(0, k.ndim - cos_theta.ndim)
-    cos_theta = cos_theta.reshape(cos_theta.shape + (1,)*extra_dims)
-    sin_theta = sin_theta.reshape(sin_theta.shape + (1,)*extra_dims)
-    rot_mat = eye + k_mat*sin_theta + (k_mat @ k_mat) * (1-cos_theta)
+    cos_theta = cos_theta.reshape(cos_theta.shape + (1,) * extra_dims)
+    sin_theta = sin_theta.reshape(sin_theta.shape + (1,) * extra_dims)
+    rot_mat = eye + k_mat * sin_theta + (k_mat @ k_mat) * (1 - cos_theta)
     return rot_mat
+
 
 def sample_points_on_hemisphere(normals, num_samples=1):
     # pylint: disable=line-too-long
@@ -732,17 +755,17 @@ def sample_points_on_hemisphere(normals, num_samples=1):
     shape = (num_samples,)
 
     # Sample phi uniformly distributed on [0,2*np.pi]
-    phi = np.random.uniform(0., 2*np.pi, shape).astype(dtype)
+    phi = np.random.uniform(0.0, 2 * np.pi, shape).astype(dtype)
 
     # Generate samples of theta for uniform distribution on the hemisphere
-    u = np.random.uniform(0., 1., shape).astype(dtype)
+    u = np.random.uniform(0.0, 1.0, shape).astype(dtype)
     theta = np.arccos(u)
 
     # Transform spherical to Cartesian coordinates
     points = r_hat(theta, phi)
 
     # Compute rotation matrices
-    z_hat = np.array([[0,0,1]], dtype)
+    z_hat = np.array([[0, 0, 1]], dtype)
     z_hat = np.broadcast_to(z_hat, normals.shape)
     rot_mat = rot_mat_from_unit_vecs(z_hat, normals)
     rot_mat = np.expand_dims(rot_mat, axis=1)
@@ -754,13 +777,14 @@ def sample_points_on_hemisphere(normals, num_samples=1):
     # Correct the sampled vector to avoid sampling in the wrong hemisphere.
     normals = np.expand_dims(normals, axis=1)
     s = dot(points, normals, keepdim=True)
-    s = np.where(s < 0., s, 0.)
-    points = points - 2.*s*normals
+    s = np.where(s < 0.0, s, 0.0)
+    points = points - 2.0 * s * normals
 
-    if num_samples==1:
+    if num_samples == 1:
         points = np.squeeze(points, axis=1)
 
     return points
+
 
 def angles_to_mitsuba_rotation(angles):
     """
@@ -777,7 +801,7 @@ def angles_to_mitsuba_rotation(angles):
         Mitsuba rotation
     """
 
-    angles = 180. * angles / np.pi
+    angles = 180.0 * angles / np.pi
 
     if angles.dtype == np.float_:
         mi_transform_t = mi.Transform4f
@@ -787,10 +811,11 @@ def angles_to_mitsuba_rotation(angles):
         angles = mi.Float64(angles)
 
     return (
-          mi_transform_t.rotate(axis=[0., 0., 1.], angle=angles[0])
-        @ mi_transform_t.rotate(axis=[0., 1., 0.], angle=angles[1])
-        @ mi_transform_t.rotate(axis=[1., 0., 0.], angle=angles[2])
+        mi_transform_t.rotate(axis=[0.0, 0.0, 1.0], angle=angles[0])
+        @ mi_transform_t.rotate(axis=[0.0, 1.0, 0.0], angle=angles[1])
+        @ mi_transform_t.rotate(axis=[1.0, 0.0, 0.0], angle=angles[2])
     )
+
 
 def gen_basis_from_z(z, epsilon):
     """
@@ -813,9 +838,10 @@ def gen_basis_from_z(z, epsilon):
         Unit vector
     """
     x = gen_orthogonal_vector(z, epsilon)
-    x,_ = normalize(x)
+    x, _ = normalize(x)
     y = cross(z, x)
-    return x,y
+    return x, y
+
 
 def compute_spreading_factor(rho_1, rho_2, s):
     r"""
@@ -840,14 +866,15 @@ def compute_spreading_factor(rho_1, rho_2, s):
     # In the case of a spherical wave, when the origin (s = 0) is set to unique
     # caustic point, then both principal radii of curvature are set to zero.
     # The spreading factor is then equal to 1/s.
-    spherical = (rho_1 == 0.) & (rho_2 == 0.)
-    a2_spherical = np.where(s != 0., 1./s, 0.)
+    spherical = (rho_1 == 0.0) & (rho_2 == 0.0)
+    a2_spherical = np.where(s != 0.0, 1.0 / s, 0.0)
 
     # General formula for the spreading factor
-    a2 = np.sqrt(rho_1*rho_2/((rho_1+s)*(rho_2+s)))
+    a2 = np.sqrt(rho_1 * rho_2 / ((rho_1 + s) * (rho_2 + s)))
 
     a2 = np.where(spherical, a2_spherical, a2)
     return a2
+
 
 def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
     """
@@ -874,26 +901,24 @@ def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
     to_world : :class:`mitsuba.ScalarTransform4f`
         Rectangle to world transformation.
     """
-    orientation = 180. * orientation / np.pi
+    orientation = 180.0 * orientation / np.pi
 
-    trans = \
-        mi.ScalarTransform4f.translate(center.numpy())\
-        @ mi.ScalarTransform4f.rotate(axis=[0, 0, 1], angle=orientation[0])\
-        @ mi.ScalarTransform4f.rotate(axis=[0, 1, 0], angle=orientation[1])\
+    trans = (
+        mi.ScalarTransform4f.translate(center.numpy())
+        @ mi.ScalarTransform4f.rotate(axis=[0, 0, 1], angle=orientation[0])
+        @ mi.ScalarTransform4f.rotate(axis=[0, 1, 0], angle=orientation[1])
         @ mi.ScalarTransform4f.rotate(axis=[1, 0, 0], angle=orientation[2])
+    )
 
     if ris:
         # The RIS normal points at [1,0,0].
         # We hence rotate the normal of the rectangle which points
         # at [0,0,1] by 90 degrees around the [0,1,0] axis.
-        trans = trans\
-            @mi.ScalarTransform4f.rotate(axis=[0, 1, 0], angle=90)
+        trans = trans @ mi.ScalarTransform4f.rotate(axis=[0, 1, 0], angle=90)
 
         # size = [width (=y), height (=z)]
         # Since the RIS is rotated w.r.t to rectangle,
         # The z axis corresponds to the x axis
         size = [size[1], size[0]]
 
-    return (trans
-            @mi.ScalarTransform4f.scale([0.5 * size[0], 0.5 * size[1], 1])
-    )
+    return trans @ mi.ScalarTransform4f.scale([0.5 * size[0], 0.5 * size[1], 1])
