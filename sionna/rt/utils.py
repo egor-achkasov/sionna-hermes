@@ -132,7 +132,7 @@ def theta_phi_from_unit_vec(v):
     is_unit_z = is_unit_z.astype(x.dtype)
     x += is_unit_z
 
-    theta = acos_diff(z)
+    theta = np.arccos(z)
     phi = np.arctan2(y, x)
     return theta, phi
 
@@ -701,7 +701,7 @@ def rot_mat_from_unit_vecs(a, b):
     # Assemble full rotation matrix
     eye = np.tile(np.eye(3, dtype=rdtype), (*k.shape[:-1], 1, 1))
     cos_theta = dot(a, b, clip=True)
-    sin_theta = np.sin(acos_diff(cos_theta))
+    sin_theta = np.sin(np.arccos(cos_theta))
     extra_dims = max(0, k.ndim - cos_theta.ndim)
     cos_theta = cos_theta.reshape(cos_theta.shape + (1,)*extra_dims)
     sin_theta = sin_theta.reshape(sin_theta.shape + (1,)*extra_dims)
@@ -743,54 +743,24 @@ def sample_points_on_hemisphere(normals, num_samples=1):
 
     # Compute rotation matrices
     z_hat = np.array([[0,0,1]], dtype)
-    z_hat = tf.broadcast_to(z_hat, tf.shape(normals))
+    z_hat = np.broadcast_to(z_hat, normals.shape)
     rot_mat = rot_mat_from_unit_vecs(z_hat, normals)
-    rot_mat = tf.expand_dims(rot_mat, axis=1)
+    rot_mat = np.expand_dims(rot_mat, axis=1)
 
     # Compute rotated points
-    points = tf.linalg.matvec(rot_mat, points)
+    points = rot_mat @ points
 
     # Numerical errors can cause sampling from the other hemisphere.
     # Correct the sampled vector to avoid sampling in the wrong hemisphere.
-    normals = tf.expand_dims(normals, axis=1)
+    normals = np.expand_dims(normals, axis=1)
     s = dot(points, normals, keepdim=True)
-    s = tf.where(s < 0., s, 0.)
+    s = np.where(s < 0., s, 0.)
     points = points - 2.*s*normals
 
     if num_samples==1:
-        points = tf.squeeze(points, axis=1)
+        points = np.squeeze(points, axis=1)
 
     return points
-
-def acos_diff(x, epsilon=1e-7):
-    r"""
-    Implementation of arccos(x) that avoids evaluating the gradient at x
-    -1 or 1 by using straight through estimation, i.e., in the
-    forward pass, x is clipped to (-1, 1), but in the backward pass, x is
-    clipped to (-1 + epsilon, 1 - epsilon).
-
-    Input
-    ------
-    x : any shape, tf.float
-        Value at which to evaluate arccos
-
-    epsilon : tf.float
-        Small backoff to avoid evaluating the gradient at -1 or 1.
-        Defaults to 1e-7.
-
-    Output
-    -------
-     : same shape as x, tf.float
-        arccos(x)
-    """
-
-    x_clip_1 = tf.clip_by_value(x, -1., 1.)
-    x_clip_2 = tf.clip_by_value(x, -1. + epsilon, 1. - epsilon)
-    eps = tf.stop_gradient(x - x_clip_2)
-    x_1 =  x - eps
-    acos_x_1 =  tf.acos(x_1)
-    y = acos_x_1 + tf.stop_gradient(tf.acos(x_clip_1)-acos_x_1)
-    return y
 
 def angles_to_mitsuba_rotation(angles):
     """
@@ -798,7 +768,7 @@ def angles_to_mitsuba_rotation(angles):
 
     Input
     ------
-    angles : [3], tf.float
+    angles : (3,), np.float_
         Angles [rad]
 
     Output
@@ -807,9 +777,9 @@ def angles_to_mitsuba_rotation(angles):
         Mitsuba rotation
     """
 
-    angles = 180. * angles / PI
+    angles = 180. * angles / np.pi
 
-    if angles.dtype == tf.float32:
+    if angles.dtype == np.float_:
         mi_transform_t = mi.Transform4f
         angles = mi.Float(angles)
     else:
@@ -828,18 +798,18 @@ def gen_basis_from_z(z, epsilon):
 
     Input
     ------
-    z : [..., 3], tf.float
+    z : (..., 3), np.float_
         Unit vector
 
-    epsilon : (), tf.float
+    epsilon : (), np.float_
         Small value used to avoid errors due to numerical precision
 
     Output
     -------
-    x : [..., 3], tf.float
+    x : (..., 3), np.float_
         Unit vector
 
-    y : [..., 3], tf.float
+    y : (..., 3), np.float_
         Unit vector
     """
     x = gen_orthogonal_vector(z, epsilon)
@@ -854,10 +824,10 @@ def compute_spreading_factor(rho_1, rho_2, s):
 
     Input
     ------
-    rho_1, rho_2 : [...], tf.float
+    rho_1, rho_2 : (...), np.float_
         Principal radii of curvature
 
-    s : [...], tf.float
+    s : (...), np.float_
         Position along the axial ray at which to evaluate the squared
         spreading factor
 
@@ -870,13 +840,13 @@ def compute_spreading_factor(rho_1, rho_2, s):
     # In the case of a spherical wave, when the origin (s = 0) is set to unique
     # caustic point, then both principal radii of curvature are set to zero.
     # The spreading factor is then equal to 1/s.
-    spherical = tf.logical_and(tf.equal(rho_1, 0.), tf.equal(rho_2, 0.))
-    a2_spherical = tf.math.reciprocal_no_nan(s)
+    spherical = (rho_1 == 0.) & (rho_2 == 0.)
+    a2_spherical = np.where(s != 0., 1./s, 0.)
 
     # General formula for the spreading factor
-    a2 = tf.sqrt(rho_1*rho_2/((rho_1+s)*(rho_2+s)))
+    a2 = np.sqrt(rho_1*rho_2/((rho_1+s)*(rho_2+s)))
 
-    a2 = tf.where(spherical, a2_spherical, a2)
+    a2 = np.where(spherical, a2_spherical, a2)
     return a2
 
 def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
@@ -886,15 +856,15 @@ def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
 
     Input
     ------
-    center : [3], tf.float
+    center : (3,), np.float_
         Center of the rectangle
 
-    orientation : [3], tf.float
+    orientation : (3,), np.float_
         Orientation of the rectangle.
         An orientation of `(0,0,0)` correspond to a rectangle oriented such that
         z+ is its normal.
 
-    size : [2], tf.float
+    size : (2,), np.float_
         Scale of the rectangle.
         The width of the rectangle (in the local X direction) is scale[0]
         and its height (in the local Y direction) scale[1].
@@ -904,7 +874,7 @@ def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
     to_world : :class:`mitsuba.ScalarTransform4f`
         Rectangle to world transformation.
     """
-    orientation = 180. * orientation / PI
+    orientation = 180. * orientation / np.pi
 
     trans = \
         mi.ScalarTransform4f.translate(center.numpy())\
