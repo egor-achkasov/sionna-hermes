@@ -11,7 +11,6 @@ import tensorflow as tf
 
 from .object import Object
 from .utils import normalize, theta_phi_from_unit_vec
-from sionna.constants import PI
 
 
 class RadioDevice(Object):

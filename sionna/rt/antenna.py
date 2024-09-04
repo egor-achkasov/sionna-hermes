@@ -9,7 +9,6 @@ Implements classes and methods related to antennas.
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from sionna.constants import PI
 import tensorflow as tf
 from collections.abc import Sequence
 

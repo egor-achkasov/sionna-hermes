@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from .utils import theta_phi_from_unit_vec, r_hat, dot
-from sionna.constants import PI
 
 class ScatteringPattern(ABC):
     # pylint: disable=line-too-long

@@ -9,7 +9,6 @@ Class that stores coverage map
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from sionna.utils import expand_to_rank, log10
 from .utils import rotation_matrix, mitsuba_rectangle_to_world
 import warnings
 

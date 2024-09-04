@@ -13,7 +13,6 @@ import tensorflow as tf
 
 from .utils import normalize, dot, theta_phi_from_unit_vec, cross,\
     mi_to_tf_tensor, mitsuba_rectangle_to_world
-from sionna import PI
 
 
 class SolverBase:

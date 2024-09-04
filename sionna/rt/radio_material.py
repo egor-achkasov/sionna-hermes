@@ -10,7 +10,6 @@ A radio material provides the EM radio properties for a specific material.
 import tensorflow as tf
 
 from . import scene
-from sionna.constants import DIELECTRIC_PERMITTIVITY_VACUUM, PI
 from .scattering_pattern import ScatteringPattern, LambertianPattern
 
 class RadioMaterial:

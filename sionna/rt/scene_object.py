@@ -13,7 +13,6 @@ import drjit as dr
 import mitsuba as mi
 from .utils import mi_to_tf_tensor, angles_to_mitsuba_rotation, normalize,\
     theta_phi_from_unit_vec
-from sionna.constants import PI
 
 
 class SceneObject(Object):

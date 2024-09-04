@@ -11,7 +11,6 @@ from abc import abstractmethod
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-from sionna.constants import SPEED_OF_LIGHT
 from .radio_device import RadioDevice
 from .scene_object import SceneObject
 from . import scene
