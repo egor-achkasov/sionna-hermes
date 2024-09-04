@@ -14,13 +14,12 @@ from importlib_resources import files
 import matplotlib
 import matplotlib.pyplot as plt
 import mitsuba as mi
-import tensorflow as tf
+import numpy as np
 import drjit as dr
 
 from .antenna_array import AntennaArray
 from .camera import Camera
 from .radio_device import RadioDevice
-from sionna.constants import SPEED_OF_LIGHT, PI
 from .itu_materials import instantiate_itu_materials
 from .radio_material import RadioMaterial
 from .receiver import Receiver
@@ -31,7 +30,6 @@ from .solver_cm import SolverCoverageMap
 from .transmitter import Transmitter
 from .previewer import InteractiveDisplay
 from .renderer import render, coverage_map_color_mapping
-from .utils import expand_to_rank
 from .paths import Paths
 from . import scenes
 
@@ -65,12 +63,13 @@ class Scene:
     """
 
     # Default frequency
-    DEFAULT_FREQUENCY = 3.5e9 # Hz
+    DEFAULT_FREQUENCY = 3.5e9  # Hz
 
     # This object is a singleton, as it is assumed that only one scene can be
     # loaded at a time.
     _instance = None
-    def __new__(cls, *args, **kwargs): # pylint: disable=unused-argument
+
+    def __new__(cls, *args, **kwargs):  # pylint: disable=unused-argument
         if cls._instance is None:
             instance = object.__new__(cls)
 
@@ -111,7 +110,7 @@ class Scene:
 
         return cls._instance
 
-    def __init__(self, env_filename = None, dtype = tf.complex64):
+    def __init__(self, env_filename=None, dtype=tf.complex64):
 
         # If a filename is provided, loads the scene from it.
         # The previous scene is overwritten.
@@ -136,10 +135,9 @@ class Scene:
             # Keep track of the Mitsuba scene
             if env_filename == "__empty__":
                 # Set an empty scene
-                self._scene = mi.load_dict({"type": "scene",
-                                            "integrator": {
-                                                "type": "path",
-                                            }})
+                self._scene = mi.load_dict(
+                    {"type": "scene", "integrator": {"type": "path"}}
+                )
             else:
                 self._scene = mi.load_file(env_filename)
             self._scene_params = mi.traverse(self._scene)
@@ -148,8 +146,9 @@ class Scene:
             self._solver_paths = SolverPaths(self, dtype=dtype)
 
             # Solver for coverage map
-            self._solver_cm = SolverCoverageMap(self, solver=self._solver_paths,
-                                                dtype=dtype)
+            self._solver_cm = SolverCoverageMap(
+                self, solver=self._solver_paths, dtype=dtype
+            )
 
             # Load the cameras
             self._load_cameras()
@@ -187,8 +186,7 @@ class Scene:
             raise ValueError("Frequency must be positive")
         self._frequency = tf.cast(f, self._dtype.real_dtype)
         # Wavelength [m]
-        self._wavelength = tf.cast(SPEED_OF_LIGHT/f,
-                                    self._dtype.real_dtype)
+        self._wavelength = tf.cast(SPEED_OF_LIGHT / f, self._dtype.real_dtype)
 
         # Update radio materials
         for mat in self.radio_materials.values():
@@ -206,7 +204,7 @@ class Scene:
         r"""
         float (read-only) :  Wavenumber :math:`k=2\pi/\lambda` [m^-1]
         """
-        return tf.cast(2*PI, self._dtype.real_dtype)/self._wavelength
+        return tf.cast(2 * PI, self._dtype.real_dtype) / self._wavelength
 
     @property
     def synthetic_array(self):
@@ -306,8 +304,7 @@ class Scene:
         [3], tf.float : Get the size of the scene, i.e., the size of the
         axis-aligned minimum bounding box for the scene
         """
-        size = tf.cast(self._scene.bbox().max - self._scene.bbox().min,
-                       self._rdtype)
+        size = tf.cast(self._scene.bbox().max - self._scene.bbox().min, self._rdtype)
         return size
 
     @property
@@ -315,8 +312,9 @@ class Scene:
         """
         [3], tf.float : Get the center of the scene
         """
-        size = tf.cast((self._scene.bbox().max + self._scene.bbox().min)*0.5,
-                       self._rdtype)
+        size = tf.cast(
+            (self._scene.bbox().max + self._scene.bbox().min) * 0.5, self._rdtype
+        )
         return size
 
     def get(self, name):
@@ -364,27 +362,34 @@ class Scene:
         item : :class:`~sionna.rt.Transmitter` | :class:`~sionna.rt.Receiver` | :class:`~sionna.rt.RIS` | :class:`~sionna.rt.RadioMaterial` | :class:`~sionna.rt.Camera`
             Item to add to the scene
         """
-        if ( (not isinstance(item, Camera))
-         and (not isinstance(item, RadioDevice))
-         and (not isinstance(item, RadioMaterial)) ):
-            err_msg = "The input must be a Transmitter, Receiver, RIS, Camera, or"\
-                      " RadioMaterial"
+        if (
+            (not isinstance(item, Camera))
+            and (not isinstance(item, RadioDevice))
+            and (not isinstance(item, RadioMaterial))
+        ):
+            err_msg = (
+                "The input must be a Transmitter, Receiver, RIS, Camera, or"
+                " RadioMaterial"
+            )
             raise ValueError(err_msg)
 
         name = item.name
         s_item = self.get(name)
         if s_item is not None:
-            if  s_item is not item:
+            if s_item is not item:
                 # In the case of RadioMaterial, the current item with same
                 # name could just be a placeholder
-                if (isinstance(s_item, RadioMaterial)
+                if (
+                    isinstance(s_item, RadioMaterial)
                     and isinstance(item, RadioMaterial)
-                    and s_item.is_placeholder):
+                    and s_item.is_placeholder
+                ):
                     s_item.assign(item)
                     s_item.is_placeholder = False
                 else:
-                    msg = f"Name '{name}' is already used by another item of"\
-                           " the scene"
+                    msg = (
+                        f"Name '{name}' is already used by another item of" " the scene"
+                    )
                     raise ValueError(msg)
             else:
                 # This item was already added.
@@ -398,10 +403,10 @@ class Scene:
         elif isinstance(item, RIS):
             self._ris[name] = item
             # Manually assign object_id to each RIS
-            if len(self.objects)>0:
+            if len(self.objects) > 0:
                 max_id = max(obj.object_id for obj in self.objects.values())
             else:
-                max_id=0
+                max_id = 0
             max_id += len(self._ris)
             item.object_id = max_id
             # Set scene propety and radio material
@@ -452,21 +457,31 @@ class Scene:
 
         elif isinstance(item, RadioMaterial):
             if item.is_used:
-                msg = f"The radio material '{name}' is used by at least one"\
-                        " object"
+                msg = f"The radio material '{name}' is used by at least one" " object"
                 raise ValueError(msg)
             del self._radio_materials[name]
 
         else:
-            msg = "Only Transmitters, Receivers, RIS, Cameras, or RadioMaterials"\
-                  " can be removed"
+            msg = (
+                "Only Transmitters, Receivers, RIS, Cameras, or RadioMaterials"
+                " can be removed"
+            )
             raise TypeError(msg)
 
-
-    def trace_paths(self, max_depth=3, method="fibonacci", num_samples=int(1e6),
-                    los=True, reflection=True, diffraction=False,
-                    scattering=False, ris=True, scat_keep_prob=0.001,
-                    edge_diffraction=False, check_scene=True):
+    def trace_paths(
+        self,
+        max_depth=3,
+        method="fibonacci",
+        num_samples=int(1e6),
+        los=True,
+        reflection=True,
+        diffraction=False,
+        scattering=False,
+        ris=True,
+        scat_keep_prob=0.001,
+        edge_diffraction=False,
+        check_scene=True,
+    ):
         # pylint: disable=line-too-long
         r"""
         Computes the trajectories of the paths by shooting rays
@@ -592,7 +607,7 @@ class Scene:
             involving RIS
         """
 
-        if scat_keep_prob < 0. or scat_keep_prob > 1.:
+        if scat_keep_prob < 0.0 or scat_keep_prob > 1.0:
             msg = "The parameter `scat_keep_prob` must be in the range (0,1)"
             raise ValueError(msg)
 
@@ -601,22 +616,35 @@ class Scene:
             self._check_scene(False)
 
         # Trace the paths
-        paths = self._solver_paths.trace_paths(max_depth,
-                                               method=method,
-                                               num_samples=num_samples,
-                                               los=los, reflection=reflection,
-                                               diffraction=diffraction,
-                                               scattering=scattering,
-                                               ris=ris,
-                                               scat_keep_prob=scat_keep_prob,
-                                               edge_diffraction=edge_diffraction)
+        paths = self._solver_paths.trace_paths(
+            max_depth,
+            method=method,
+            num_samples=num_samples,
+            los=los,
+            reflection=reflection,
+            diffraction=diffraction,
+            scattering=scattering,
+            ris=ris,
+            scat_keep_prob=scat_keep_prob,
+            edge_diffraction=edge_diffraction,
+        )
 
         return paths
 
-    def compute_fields(self, spec_paths, diff_paths, scat_paths, ris_paths,
-                       spec_paths_tmp, diff_paths_tmp, scat_paths_tmp,
-                       ris_paths_tmp, check_scene=True, scat_random_phases=True,
-                       testing=False):
+    def compute_fields(
+        self,
+        spec_paths,
+        diff_paths,
+        scat_paths,
+        ris_paths,
+        spec_paths_tmp,
+        diff_paths_tmp,
+        scat_paths_tmp,
+        ris_paths_tmp,
+        check_scene=True,
+        scat_random_phases=True,
+        testing=False,
+    ):
         r"""compute_fields(self, spec_paths, diff_paths, scat_paths, spec_paths_tmp, diff_paths_tmp, scat_paths_tmp, check_scene=True, scat_random_phases=True)
         Computes the EM fields corresponding to traced paths
 
@@ -697,10 +725,18 @@ class Scene:
             self._check_scene(False)
 
         # Compute the fields and merge the paths
-        output = self._solver_paths.compute_fields(spec_paths, diff_paths,
-            scat_paths, ris_paths, spec_paths_tmp, diff_paths_tmp,
-            scat_paths_tmp, ris_paths_tmp,
-            scat_random_phases, testing)
+        output = self._solver_paths.compute_fields(
+            spec_paths,
+            diff_paths,
+            scat_paths,
+            ris_paths,
+            spec_paths_tmp,
+            diff_paths_tmp,
+            scat_paths_tmp,
+            ris_paths_tmp,
+            scat_random_phases,
+            testing,
+        )
         sources, targets, paths_as_dict = output[:3]
         paths = Paths(sources, targets, self)
         paths.from_dict(paths_as_dict)
@@ -724,12 +760,22 @@ class Scene:
 
         return paths
 
-    def compute_paths(self, max_depth=3, method="fibonacci",
-                      num_samples=int(1e6), los=True, reflection=True,
-                      diffraction=False, scattering=False, ris=True,
-                      scat_keep_prob=0.001, edge_diffraction=False,
-                      check_scene=True, scat_random_phases=True,
-                      testing=False):
+    def compute_paths(
+        self,
+        max_depth=3,
+        method="fibonacci",
+        num_samples=int(1e6),
+        los=True,
+        reflection=True,
+        diffraction=False,
+        scattering=False,
+        ris=True,
+        scat_keep_prob=0.001,
+        edge_diffraction=False,
+        check_scene=True,
+        scat_random_phases=True,
+        testing=False,
+    ):
         # pylint: disable=line-too-long
         r"""
         Computes propagation paths
@@ -905,34 +951,45 @@ class Scene:
         """
 
         # Trace the paths
-        traced_paths = self.trace_paths(max_depth, method, num_samples, los,
-            reflection, diffraction, scattering, ris, scat_keep_prob,
-            edge_diffraction, check_scene)
+        traced_paths = self.trace_paths(
+            max_depth,
+            method,
+            num_samples,
+            los,
+            reflection,
+            diffraction,
+            scattering,
+            ris,
+            scat_keep_prob,
+            edge_diffraction,
+            check_scene,
+        )
 
         # Compute the fields and merge the paths
         # Check scene is not done twice
-        paths = self.compute_fields(*traced_paths, False, scat_random_phases,
-                                    testing)
+        paths = self.compute_fields(*traced_paths, False, scat_random_phases, testing)
 
         return paths
 
-    def coverage_map(self,
-                     rx_orientation=(0.,0.,0.),
-                     max_depth=3,
-                     cm_center=None,
-                     cm_orientation=None,
-                     cm_size=None,
-                     cm_cell_size=(10.,10.),
-                     combining_vec=None,
-                     precoding_vec=None,
-                     num_samples=int(2e6),
-                     los=True,
-                     reflection=True,
-                     diffraction=False,
-                     scattering=False,
-                     ris=True,
-                     edge_diffraction=False,
-                     check_scene=True):
+    def coverage_map(
+        self,
+        rx_orientation=(0.0, 0.0, 0.0),
+        max_depth=3,
+        cm_center=None,
+        cm_orientation=None,
+        cm_size=None,
+        cm_cell_size=(10.0, 10.0),
+        combining_vec=None,
+        precoding_vec=None,
+        num_samples=int(2e6),
+        los=True,
+        reflection=True,
+        diffraction=False,
+        scattering=False,
+        ris=True,
+        edge_diffraction=False,
+        check_scene=True,
+    ):
         # pylint: disable=line-too-long
         r"""
         This function computes a coverage map for every transmitter in the scene.
@@ -1214,9 +1271,7 @@ class Scene:
             self._check_scene(True)
 
         # Check the properties of the rectangle defining the coverage map
-        if ((cm_center is None)
-            and (cm_size is None)
-            and (cm_orientation is None)):
+        if (cm_center is None) and (cm_size is None) and (cm_orientation is None):
             # Default value for center: Center of the scene
             # Default value for the scale: Just enough to cover all the scene
             # with axis-aligned edges of the rectangle
@@ -1224,30 +1279,36 @@ class Scene:
             scene_min = self._scene.bbox().min
             scene_min = tf.cast(scene_min, self._rdtype)
             # In case of empty scene, bbox min is -inf
-            scene_min = tf.where(tf.math.is_inf(scene_min),
-                                 -tf.ones_like(scene_min),
-                                 scene_min)
+            scene_min = tf.where(
+                tf.math.is_inf(scene_min), -tf.ones_like(scene_min), scene_min
+            )
             # [max_x, max_y, max_z]
             scene_max = self._scene.bbox().max
             scene_max = tf.cast(scene_max, self._rdtype)
             # In case of empty scene, bbox min is inf
-            scene_max = tf.where(tf.math.is_inf(scene_max),
-                                 tf.ones_like(scene_max),
-                                 scene_max)
-            cm_center = tf.cast([(scene_min[0] + scene_max[0])*0.5,
-                                 (scene_min[1] + scene_max[1])*0.5,
-                                 1.5], dtype=self._rdtype)
-            cm_size = tf.cast([(scene_max[0] - scene_min[0]),
-                               (scene_max[1] - scene_min[1])],
-                                dtype=self._rdtype)
+            scene_max = tf.where(
+                tf.math.is_inf(scene_max), tf.ones_like(scene_max), scene_max
+            )
+            cm_center = tf.cast(
+                [
+                    (scene_min[0] + scene_max[0]) * 0.5,
+                    (scene_min[1] + scene_max[1]) * 0.5,
+                    1.5,
+                ],
+                dtype=self._rdtype,
+            )
+            cm_size = tf.cast(
+                [(scene_max[0] - scene_min[0]), (scene_max[1] - scene_min[1])],
+                dtype=self._rdtype,
+            )
             # Set the orientation to default value
             cm_orientation = tf.zeros([3], dtype=self._rdtype)
-        elif ((cm_center is None)
-              or (cm_size is None)
-              or (cm_orientation is None)):
-            raise ValueError("If one of `cm_center`, `cm_orientation`,"\
-                             " or `cm_size` is not None, then all of them"\
-                             " must not be None")
+        elif (cm_center is None) or (cm_size is None) or (cm_orientation is None):
+            raise ValueError(
+                "If one of `cm_center`, `cm_orientation`,"
+                " or `cm_size` is not None, then all of them"
+                " must not be None"
+            )
         else:
             cm_center = tf.cast(cm_center, self._rdtype)
             cm_orientation = tf.cast(cm_orientation, self._rdtype)
@@ -1258,10 +1319,8 @@ class Scene:
             combining_vec = tf.cast(combining_vec, self._dtype)
         if precoding_vec is None:
             num_tx = len(self.transmitters)
-            precoding_vec = tf.ones([num_tx, self.tx_array.num_ant],
-                                    self._dtype)
-            precoding_vec /= tf.sqrt(tf.cast(self.tx_array.num_ant,
-                                             self._dtype))
+            precoding_vec = tf.ones([num_tx, self.tx_array.num_ant], self._dtype)
+            precoding_vec /= tf.sqrt(tf.cast(self.tx_array.num_ant, self._dtype))
         else:
             precoding_vec = tf.cast(precoding_vec, self._dtype)
             precoding_vec = expand_to_rank(precoding_vec, 2, 0)
@@ -1271,30 +1330,43 @@ class Scene:
 
         # Compute the coverage map using the solver
         # [num_sources, num_cells_x, num_cells_y]
-        output = self._solver_cm(max_depth=max_depth,
-                                 rx_orientation=rx_orientation,
-                                 cm_center=cm_center,
-                                 cm_orientation=cm_orientation,
-                                 cm_size=cm_size,
-                                 cm_cell_size=cm_cell_size,
-                                 combining_vec=combining_vec,
-                                 precoding_vec=precoding_vec,
-                                 num_samples=num_samples,
-                                 los=los,
-                                 reflection=reflection,
-                                 diffraction=diffraction,
-                                 scattering=scattering,
-                                 ris=ris,
-                                 edge_diffraction=edge_diffraction)
+        output = self._solver_cm(
+            max_depth=max_depth,
+            rx_orientation=rx_orientation,
+            cm_center=cm_center,
+            cm_orientation=cm_orientation,
+            cm_size=cm_size,
+            cm_cell_size=cm_cell_size,
+            combining_vec=combining_vec,
+            precoding_vec=precoding_vec,
+            num_samples=num_samples,
+            los=los,
+            reflection=reflection,
+            diffraction=diffraction,
+            scattering=scattering,
+            ris=ris,
+            edge_diffraction=edge_diffraction,
+        )
 
         return output
 
-    def preview(self, paths=None, show_paths=True, show_devices=True,
-                show_orientations=False,
-                coverage_map=None, cm_tx=0, cm_db_scale=True,
-                cm_vmin=None, cm_vmax=None,
-                resolution=(655, 500), fov=45, background='#ffffff',
-                clip_at=None, clip_plane_orientation=(0, 0, -1)):
+    def preview(
+        self,
+        paths=None,
+        show_paths=True,
+        show_devices=True,
+        show_orientations=False,
+        coverage_map=None,
+        cm_tx=0,
+        cm_db_scale=True,
+        cm_vmin=None,
+        cm_vmax=None,
+        resolution=(655, 500),
+        fov=45,
+        background="#ffffff",
+        clip_at=None,
+        clip_plane_orientation=(0, 0, -1),
+    ):
         # pylint: disable=line-too-long
         r"""preview(paths=None, show_paths=True, show_devices=True, coverage_map=None, cm_tx=0, cm_vmin=None, cm_vmax=None, resolution=(655, 500), fov=45, background='#ffffff', clip_at=None, clip_plane_orientation=(0, 0, -1))
 
@@ -1409,10 +1481,9 @@ class Scene:
         if needs_reset:
             fig.reset()
         else:
-            fig = InteractiveDisplay(scene=self,
-                                     resolution=resolution,
-                                     fov=fov,
-                                     background=background)
+            fig = InteractiveDisplay(
+                scene=self, resolution=resolution, fov=fov, background=background
+            )
             self._preview_widget = fig
 
         # Show paths and devices, if required
@@ -1423,8 +1494,8 @@ class Scene:
             fig.plot_ris()
         if coverage_map is not None:
             fig.plot_coverage_map(
-                coverage_map, tx=cm_tx, db_scale=cm_db_scale,
-                vmin=cm_vmin, vmax=cm_vmax)
+                coverage_map, tx=cm_tx, db_scale=cm_db_scale, vmin=cm_vmin, vmax=cm_vmax
+            )
 
         # Clipping
         fig.set_clipping_plane(offset=clip_at, orientation=clip_plane_orientation)
@@ -1435,10 +1506,22 @@ class Scene:
 
         return fig
 
-    def render(self, camera, paths=None, show_paths=True, show_devices=True,
-               coverage_map=None, cm_tx=0, cm_db_scale=True,
-               cm_vmin=None, cm_vmax=None, cm_show_color_bar=True,
-               num_samples=512, resolution=(655, 500), fov=45):
+    def render(
+        self,
+        camera,
+        paths=None,
+        show_paths=True,
+        show_devices=True,
+        coverage_map=None,
+        cm_tx=0,
+        cm_db_scale=True,
+        cm_vmin=None,
+        cm_vmax=None,
+        cm_show_color_bar=True,
+        num_samples=512,
+        resolution=(655, 500),
+        fov=45,
+    ):
         # pylint: disable=line-too-long
         r"""render(camera, paths=None, show_paths=True, show_devices=True, coverage_map=None, cm_tx=0, cm_vmin=None, cm_vmax=None, cm_show_color_bar=True, num_samples=512, resolution=(655, 500), fov=45)
 
@@ -1514,30 +1597,34 @@ class Scene:
             Rendered image
         """
 
-        image = render(scene=self,
-                       camera=camera,
-                       paths=paths,
-                       show_paths=show_paths,
-                       show_devices=show_devices,
-                       coverage_map=coverage_map,
-                       cm_tx=cm_tx,
-                       cm_db_scale=cm_db_scale,
-                       cm_vmin=cm_vmin,
-                       cm_vmax=cm_vmax,
-                       num_samples=num_samples,
-                       resolution=resolution,
-                       fov=fov)
+        image = render(
+            scene=self,
+            camera=camera,
+            paths=paths,
+            show_paths=show_paths,
+            show_devices=show_devices,
+            coverage_map=coverage_map,
+            cm_tx=cm_tx,
+            cm_db_scale=cm_db_scale,
+            cm_vmin=cm_vmin,
+            cm_vmax=cm_vmax,
+            num_samples=num_samples,
+            resolution=resolution,
+            fov=fov,
+        )
 
-        to_show = image.convert(component_format=mi.Struct.Type.UInt8,
-                                srgb_gamma=True)
+        to_show = image.convert(component_format=mi.Struct.Type.UInt8, srgb_gamma=True)
 
         show_color_bar = (coverage_map is not None) and cm_show_color_bar
 
         if show_color_bar:
-            aspect = image.width()*1.06 / image.height()
-            fig, ax = plt.subplots(1, 2,
-                                   gridspec_kw={'width_ratios': [0.97, 0.03]},
-                                   figsize=(aspect * 6, 6))
+            aspect = image.width() * 1.06 / image.height()
+            fig, ax = plt.subplots(
+                1,
+                2,
+                gridspec_kw={"width_ratios": [0.97, 0.03]},
+                figsize=(aspect * 6, 6),
+            )
             im_ax = ax[0]
         else:
             aspect = image.width() / image.height()
@@ -1548,24 +1635,38 @@ class Scene:
 
         if show_color_bar:
             _, normalizer, color_map = coverage_map_color_mapping(
-                coverage_map[cm_tx, :, :].numpy(), db_scale=cm_db_scale,
-                vmin=cm_vmin, vmax=cm_vmax)
-            mappable = matplotlib.cm.ScalarMappable(
-                norm=normalizer, cmap=color_map)
+                coverage_map[cm_tx, :, :].numpy(),
+                db_scale=cm_db_scale,
+                vmin=cm_vmin,
+                vmax=cm_vmax,
+            )
+            mappable = matplotlib.cm.ScalarMappable(norm=normalizer, cmap=color_map)
 
             cax = ax[1]
-            cax.set_title('dB')
+            cax.set_title("dB")
             fig.colorbar(mappable, cax=cax)
 
         # Remove axes and margins
-        im_ax.axis('off')
+        im_ax.axis("off")
         fig.tight_layout()
         return fig
 
-    def render_to_file(self, camera, filename, paths=None, show_paths=True, show_devices=True,
-                       coverage_map=None, cm_tx=0, cm_db_scale=True,
-                       cm_vmin=None, cm_vmax=None,
-                       num_samples=512, resolution=(655, 500), fov=45):
+    def render_to_file(
+        self,
+        camera,
+        filename,
+        paths=None,
+        show_paths=True,
+        show_devices=True,
+        coverage_map=None,
+        cm_tx=0,
+        cm_db_scale=True,
+        cm_vmin=None,
+        cm_vmax=None,
+        num_samples=512,
+        resolution=(655, 500),
+        fov=45,
+    ):
         # pylint: disable=line-too-long
         r"""render_to_file(camera, filename, paths=None, show_paths=True, show_devices=True, coverage_map=None, cm_tx=0, cm_db_scale=True, cm_vmin=None, cm_vmax=None, num_samples=512, resolution=(655, 500), fov=45)
 
@@ -1634,28 +1735,33 @@ class Scene:
             Defaults to 45°.
 
         """
-        image = render(scene=self,
-                       camera=camera,
-                       paths=paths,
-                       show_paths=show_paths,
-                       show_devices=show_devices,
-                       coverage_map=coverage_map,
-                       cm_tx=cm_tx,
-                       cm_db_scale=cm_db_scale,
-                       cm_vmin=cm_vmin,
-                       cm_vmax=cm_vmax,
-                       num_samples=num_samples,
-                       resolution=resolution,
-                       fov=fov)
+        image = render(
+            scene=self,
+            camera=camera,
+            paths=paths,
+            show_paths=show_paths,
+            show_devices=show_devices,
+            coverage_map=coverage_map,
+            cm_tx=cm_tx,
+            cm_db_scale=cm_db_scale,
+            cm_vmin=cm_vmin,
+            cm_vmax=cm_vmax,
+            num_samples=num_samples,
+            resolution=resolution,
+            fov=fov,
+        )
 
         ext = os.path.splitext(filename)[1].lower()
-        if ext in ('.jpg', '.jpeg', '.ppm',):
-            image = image.convert(component_format=mi.Struct.Type.UInt8,
-                                  pixel_format=mi.Bitmap.PixelFormat.RGB,
-                                  srgb_gamma=True)
-        elif ext in ('.png', '.tga' '.bmp'):
-            image = image.convert(component_format=mi.Struct.Type.UInt8,
-                                  srgb_gamma=True)
+        if ext in (".jpg", ".jpeg", ".ppm"):
+            image = image.convert(
+                component_format=mi.Struct.Type.UInt8,
+                pixel_format=mi.Bitmap.PixelFormat.RGB,
+                srgb_gamma=True,
+            )
+        elif ext in (".png", ".tga" ".bmp"):
+            image = image.convert(
+                component_format=mi.Struct.Type.UInt8, srgb_gamma=True
+            )
         image.write(filename)
 
     @property
@@ -1833,13 +1939,17 @@ class Scene:
             else:
                 # Check that the material is well-defined
                 if not mat.well_defined:
-                    msg = f"Material '{mat.name}' is used by the object "\
-                           f" '{obj.name}' but is not well-defined."
+                    msg = (
+                        f"Material '{mat.name}' is used by the object "
+                        f" '{obj.name}' but is not well-defined."
+                    )
                     raise ValueError(msg)
                 # Check that the material is not a placeholder
                 if mat.is_placeholder:
-                    msg = f"Material '{mat.name}' is used by the object "\
-                           f" '{obj.name}' but not defined."
+                    msg = (
+                        f"Material '{mat.name}' is used by the object "
+                        f" '{obj.name}' but not defined."
+                    )
                     raise ValueError(msg)
 
     def _load_cameras(self):
@@ -1848,15 +1958,13 @@ class Scene:
         """
         for i, mi_cam in enumerate(self._scene.sensors()):
             # Extract the transformation paramters
-            transform = mi.traverse(mi_cam)['to_world']
+            transform = mi.traverse(mi_cam)["to_world"]
             position = Camera.world_to_position(transform)
             orientation = Camera.world_to_angles(transform)
 
             # Create the camera
             name = f"scene-cam-{i}"
-            new_cam = Camera(name=name,
-                             position=position,
-                             orientation=orientation)
+            new_cam = Camera(name=name, position=position, orientation=orientation)
             new_cam.scene = self
 
             self._cameras[name] = new_cam
@@ -1867,13 +1975,12 @@ class Scene:
         """
         # Parse all shapes in the scene
         scene = self._scene
-        objects_id = dr.reinterpret_array_v(mi.UInt32,
-                                            scene.shapes_dr()).tf()
-        for obj_id,s in zip(objects_id,scene.shapes()):
+        objects_id = dr.reinterpret_array_v(mi.UInt32, scene.shapes_dr()).tf()
+        for obj_id, s in zip(objects_id, scene.shapes()):
             obj_id = int(obj_id.numpy())
             # Only meshes are handled
             if not isinstance(s, mi.Mesh):
-                raise TypeError('Only triangle meshes are supported')
+                raise TypeError("Only triangle meshes are supported")
 
             # Setup the material
             mat_name = s.bsdf().id()
@@ -1891,7 +1998,7 @@ class Scene:
 
             # Instantiate the scene objects
             name = s.id()
-            if name.startswith('mesh-'):
+            if name.startswith("mesh-"):
                 name = name[5:]
             if self._is_name_used(name):
                 raise ValueError(f"Name'{name}' already used by another item")
@@ -1906,10 +2013,12 @@ class Scene:
         Returns `True` if ``name`` is used by a scene object, a transmitter,
         or a receiver.
         """
-        used = ((name in self._transmitters)
-             or (name in self._receivers)
-             or (name in self._radio_materials)
-             or (name in self._scene_objects))
+        used = (
+            (name in self._transmitters)
+            or (name in self._receivers)
+            or (name in self._radio_materials)
+            or (name in self._scene_objects)
+        )
         return used
 
 
@@ -1941,6 +2050,7 @@ def load_scene(filename=None, dtype=tf.complex64):
         filename = "__empty__"
     return Scene(filename, dtype=dtype)
 
+
 #
 # Module variables for example scene files
 #
@@ -1954,7 +2064,9 @@ Example scene containing a ground plane and a vertical wall
 """
 
 # pylint: disable=C0301
-simple_street_canyon = str(files(scenes).joinpath("simple_street_canyon/simple_street_canyon.xml"))
+simple_street_canyon = str(
+    files(scenes).joinpath("simple_street_canyon/simple_street_canyon.xml")
+)
 """
 Example scene containing a few rectangular building blocks and a ground plane
 
@@ -1963,7 +2075,11 @@ Example scene containing a few rectangular building blocks and a ground plane
 """
 
 # pylint: disable=C0301
-simple_street_canyon_with_cars = str(files(scenes).joinpath("simple_street_canyon_with_cars/simple_street_canyon_with_cars.xml"))
+simple_street_canyon_with_cars = str(
+    files(scenes).joinpath(
+        "simple_street_canyon_with_cars/simple_street_canyon_with_cars.xml"
+    )
+)
 """
 Example scene containing a few rectangular building blocks and a ground plane as well as some cars
 
