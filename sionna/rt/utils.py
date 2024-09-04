@@ -93,7 +93,7 @@ def rotate(p, angles, inverse=False):
     # (..., 3, 3)
     rot_mat = rotation_matrix(angles)
     num_extra_dims = max(0, p.dims + 1 - rot_mat.dims)
-    rot_mat = rot_mat.reshape(((1,) * num_extra_dims, *rot_mat.shape[-2:]))
+    rot_mat = rot_mat.reshape(((1,) * num_extra_dims + rot_mat.shape[-2:]))
 
     # Rotation around ``center``
     # (..., 3)

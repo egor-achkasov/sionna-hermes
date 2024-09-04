@@ -614,7 +614,7 @@ class Paths:
         # (max_num_paths,)
         selection_mask = np.full(types.shape, False)
         if los:
-            selection_mask = np.logical_or(selection_mask, types == Paths.LOS)
+            selection_mask = np.logical_or(selection_mask | types == Paths.LOS)
         if reflection:
             selection_mask = np.logical_or(selection_mask, types == Paths.SPECULAR)
         if diffraction:
