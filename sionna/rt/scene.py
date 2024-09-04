@@ -17,6 +17,8 @@ import mitsuba as mi
 import numpy as np
 import drjit as dr
 
+from scipy.constants import speed_of_light
+
 from .antenna_array import AntennaArray
 from .camera import Camera
 from .radio_device import RadioDevice
@@ -110,17 +112,16 @@ class Scene:
 
         return cls._instance
 
-    def __init__(self, env_filename=None, dtype=tf.complex64):
+    def __init__(self, env_filename=None, dtype=np.complex_):
 
         # If a filename is provided, loads the scene from it.
         # The previous scene is overwritten.
         if env_filename:
-
-            if dtype not in (tf.complex64, tf.complex128):
-                msg = "`dtype` must be tf.complex64 or tf.complex128`"
+            if dtype not in (np.complex64, np.complex128):
+                msg = "`dtype` must be np.complex64 or np.complex128`"
                 raise ValueError(msg)
             self._dtype = dtype
-            self._rdtype = dtype.real_dtype
+            self._rdtype = np.float_
 
             # Clear it all
             self._clear()
@@ -184,9 +185,9 @@ class Scene:
     def frequency(self, f):
         if f <= 0.0:
             raise ValueError("Frequency must be positive")
-        self._frequency = tf.cast(f, self._dtype.real_dtype)
+        self._frequency = float(f)
         # Wavelength [m]
-        self._wavelength = tf.cast(SPEED_OF_LIGHT / f, self._dtype.real_dtype)
+        self._wavelength = speed_of_light
 
         # Update radio materials
         for mat in self.radio_materials.values():
@@ -204,7 +205,7 @@ class Scene:
         r"""
         float (read-only) :  Wavenumber :math:`k=2\pi/\lambda` [m^-1]
         """
-        return tf.cast(2 * PI, self._dtype.real_dtype) / self._wavelength
+        return 2. * np.pi / self._wavelength
 
     @property
     def synthetic_array(self):
@@ -223,7 +224,7 @@ class Scene:
     @property
     def dtype(self):
         r"""
-        `tf.complex64 | tf.complex128` : Datatype used in tensors
+        `np.complex64 | np.complex128` : Datatype used in tensors
         """
         return self._dtype
 
@@ -301,19 +302,19 @@ class Scene:
     @property
     def size(self):
         """
-        [3], tf.float : Get the size of the scene, i.e., the size of the
+        [3], float : Get the size of the scene, i.e., the size of the
         axis-aligned minimum bounding box for the scene
         """
-        size = tf.cast(self._scene.bbox().max - self._scene.bbox().min, self._rdtype)
+        size = float(self._scene.bbox().max - self._scene.bbox().min)
         return size
 
     @property
     def center(self):
         """
-        [3], tf.float : Get the center of the scene
+        [3], float : Get the center of the scene
         """
-        size = tf.cast(
-            (self._scene.bbox().max + self._scene.bbox().min) * 0.5, self._rdtype
+        size = float(
+            (self._scene.bbox().max + self._scene.bbox().min) * 0.5
         )
         return size
 
@@ -1275,34 +1276,34 @@ class Scene:
             # Default value for center: Center of the scene
             # Default value for the scale: Just enough to cover all the scene
             # with axis-aligned edges of the rectangle
-            # [min_x, min_y, min_z]
+            # (min_x, min_y, min_z)
             scene_min = self._scene.bbox().min
-            scene_min = tf.cast(scene_min, self._rdtype)
+            scene_min = np.asarray(scene_min, np.float_)
             # In case of empty scene, bbox min is -inf
-            scene_min = tf.where(
-                tf.math.is_inf(scene_min), -tf.ones_like(scene_min), scene_min
+            scene_min = np.where(
+                np.isinf(scene_min), -np.ones_like(scene_min), scene_min
             )
-            # [max_x, max_y, max_z]
+            # (max_x, max_y, max_z)
             scene_max = self._scene.bbox().max
-            scene_max = tf.cast(scene_max, self._rdtype)
+            scene_max = scene_max.astype(self._rdtype)
             # In case of empty scene, bbox min is inf
-            scene_max = tf.where(
-                tf.math.is_inf(scene_max), tf.ones_like(scene_max), scene_max
+            scene_max = np.where(
+                np.isinf(scene_max), np.ones_like(scene_max), scene_max
             )
-            cm_center = tf.cast(
+            cm_center = np.asarray(
                 [
                     (scene_min[0] + scene_max[0]) * 0.5,
                     (scene_min[1] + scene_max[1]) * 0.5,
                     1.5,
                 ],
-                dtype=self._rdtype,
+                dtype=np.float_,
             )
-            cm_size = tf.cast(
+            cm_size = np.asarray(
                 [(scene_max[0] - scene_min[0]), (scene_max[1] - scene_min[1])],
                 dtype=self._rdtype,
             )
             # Set the orientation to default value
-            cm_orientation = tf.zeros([3], dtype=self._rdtype)
+            cm_orientation = np.zeros([3], dtype=np.float_)
         elif (cm_center is None) or (cm_size is None) or (cm_orientation is None):
             raise ValueError(
                 "If one of `cm_center`, `cm_orientation`,"
@@ -1310,23 +1311,22 @@ class Scene:
                 " must not be None"
             )
         else:
-            cm_center = tf.cast(cm_center, self._rdtype)
-            cm_orientation = tf.cast(cm_orientation, self._rdtype)
-            cm_size = tf.cast(cm_size, self._rdtype)
+            cm_center = np.asarray(cm_center, self._rdtype)
+            cm_orientation = np.asarray(cm_orientation, self._rdtype)
+            cm_size = np.asarray(cm_size, self._rdtype)
 
         # Check and initialize the combining and precoding vector
         if combining_vec is not None:
-            combining_vec = tf.cast(combining_vec, self._dtype)
+            combining_vec = np.asarray(combining_vec, self._dtype)
         if precoding_vec is None:
             num_tx = len(self.transmitters)
-            precoding_vec = tf.ones([num_tx, self.tx_array.num_ant], self._dtype)
-            precoding_vec /= tf.sqrt(tf.cast(self.tx_array.num_ant, self._dtype))
+            precoding_vec = np.ones([num_tx, self.tx_array.num_ant], self._dtype)
+            precoding_vec /= np.sqrt(np.asarray(self.tx_array.num_ant, self._dtype))
         else:
-            precoding_vec = tf.cast(precoding_vec, self._dtype)
-            precoding_vec = expand_to_rank(precoding_vec, 2, 0)
+            precoding_vec = np.asarray(precoding_vec, self._dtype).reshape((1, 1, precoding_vec.shape[-1]))
 
         # [3]
-        rx_orientation = tf.cast(rx_orientation, self._rdtype)
+        rx_orientation = np.asarray(rx_orientation, self._rdtype)
 
         # Compute the coverage map using the solver
         # [num_sources, num_cells_x, num_cells_y]
@@ -1988,7 +1988,7 @@ class Scene:
                 mat_name = mat_name[4:]
             mat = self.get(mat_name)
             if (mat is not None) and (not isinstance(mat, RadioMaterial)):
-                raise ValueError(f"Name'{name}' already used by another item")
+                raise ValueError(f"Name'{mat_name}' already used by another item")
             elif mat is None:
                 # If the radio material does not exist, then a placeholder is
                 # used.
@@ -2022,7 +2022,7 @@ class Scene:
         return used
 
 
-def load_scene(filename=None, dtype=tf.complex64):
+def load_scene(filename=None, dtype=np.complex_):
     # pylint: disable=line-too-long
     r"""
     Load a scene from file
