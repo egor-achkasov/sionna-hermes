@@ -5036,71 +5036,41 @@ class SolverPaths(SolverBase):
             #   tx_array_size, n_scat, 2]
             # a_other : [num_rx, 1, rx_array_size, num_tx, num_tx_patterns,
             #   tx_array_size, max_num_paths - n_scat, 2]
-            a_other, a_scat = tf.split(a, [n_other, n_scat], axis=-2)
+            a_other, a_scat = np.split(a, [n_other, n_scat], axis=-2)
             # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size,
             #   max_num_paths, 3]
-            _, scat_theta_hat_r = tf.split(theta_hat_r, [n_other, n_scat], axis=-2)
+            _, scat_theta_hat_r = np.split(theta_hat_r, [n_other, n_scat], axis=-2)
             # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size,
             #   max_num_paths, 3]
-            _, scat_phi_hat_r = tf.split(phi_hat_r, [n_other, n_scat], axis=-2)
+            _, scat_phi_hat_r = np.split(phi_hat_r, [n_other, n_scat], axis=-2)
 
             # Compute incoming field
             # [num_rx, 1, 1/rx_array_size, num_tx, 1, 1/tx_array_size, n_scat,
             #   (3)]
             scat_k_i = paths_tmp.scat_last_k_i
-            if self._scene.synthetic_array:
-                def f(a):
-                    return a[:, np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
-                r_s = f(r_s)
-                r_p = f(r_p)
-                e_i_s = f(e_i_s)
-                e_i_p = f(e_i_p)
-                scat_k_i = f(scat_k_i)
-                scat_k_i = insert_dims(scat_k_i, 2, axis=1)
-                scat_k_i = insert_dims(scat_k_i, 2, axis=4)
-                field_vec = insert_dims(field_vec, 2, axis=1)
-                field_vec = insert_dims(field_vec, 2, axis=4)
-            else:
-                num_rx = len(self._scene.receivers)
-                num_tx = len(self._scene.transmitters)
-                r_s = split_dim(r_s, [num_rx, -1], 0)
-                r_s = np.expand_dims(r_s, axis=1)
-                r_s = split_dim(r_s, [num_tx, -1], 3)
-                r_s = np.expand_dims(r_s, axis=4)
-                r_p = split_dim(r_p, [num_rx, -1], 0)
-                r_p = np.expand_dims(r_p, axis=1)
-                r_p = split_dim(r_p, [num_tx, -1], 3)
-                r_p = np.expand_dims(r_p, axis=4)
-                e_i_s = split_dim(e_i_s, [num_rx, -1], 0)
-                e_i_s = np.expand_dims(e_i_s, axis=1)
-                e_i_s = split_dim(e_i_s, [num_tx, -1], 3)
-                e_i_s = np.expand_dims(e_i_s, axis=4)
-                e_i_p = split_dim(e_i_p, [num_rx, -1], 0)
-                e_i_p = np.expand_dims(e_i_p, axis=1)
-                e_i_p = split_dim(e_i_p, [num_tx, -1], 3)
-                e_i_p = np.expand_dims(e_i_p, axis=4)
-                scat_k_i = split_dim(scat_k_i, [num_rx, -1], 0)
-                scat_k_i = np.expand_dims(scat_k_i, axis=1)
-                scat_k_i = split_dim(scat_k_i, [num_tx, -1], 3)
-                scat_k_i = np.expand_dims(scat_k_i, axis=4)
-                field_vec = split_dim(field_vec, [num_rx, -1], 0)
-                field_vec = np.expand_dims(field_vec, axis=1)
-                field_vec = split_dim(field_vec, [num_tx, -1], 3)
-                field_vec = np.expand_dims(field_vec, axis=4)
+
+            def f(a):
+                return a[:, np.newaxis, np.newaxis, :, np.newaxis, np.newaxis]
+            r_s = f(r_s)
+            r_p = f(r_p)
+            e_i_s = f(e_i_s)
+            e_i_p = f(e_i_p)
+            scat_k_i = f(scat_k_i)
+            field_vec = f(field_vec)
 
             # [num_rx, 1, 1/rx_array_size, num_tx, 1, 1/tx_array_size, n_scat,2]
             scat_r = np.stack([r_s, r_p], axis=-1)
 
             # [num_rx, 1, 1/rx_array_size, num_tx, num_tx_patterns,
             #   1/tx_array_size, n_scat, 2]
-            a_in = tf.math.divide_no_nan(a_scat, scat_r)
+            a_in = np.where(scat_r == 0., 0., a_scat / scat_r)
 
             # Compute polarization field vector
-            a_in_s, a_in_p = tf.split(a_in, 2, axis=-1)
-            e_i_s = tf.complex(e_i_s, np.zeros_like(e_i_s))
-            e_i_p = tf.complex(e_i_p, np.zeros_like(e_i_p))
+            a_in_s, a_in_p = np.split(a_in, 2, axis=-1)
+            e_i_s = e_i_s + 0.j
+            e_i_p = e_i_p + 0.j
             e_in_pol = a_in_s * e_i_s + a_in_p * e_i_p
-            e_pol_hat, _ = normalize(tf.math.real(e_in_pol))
+            e_pol_hat, _ = normalize(np.real(e_in_pol))
             e_xpol_hat = cross(e_pol_hat, scat_k_i)
 
             # Compute incoming spherical unit vectors in GCS
@@ -5120,41 +5090,33 @@ class SolverPaths(SolverBase):
             scat_theta_hat_s = theta_hat(scat_theta_s, scat_phi_s)
             scat_phi_hat_s = phi_hat(scat_phi_s)
 
-            # [num_rx, 1/rx_array_size, num_sources, max_num_paths, 3]
-            scat_theta_hat_s = split_dim(scat_theta_hat_s, [num_rx, rx_array_size], 0)
-            scat_phi_hat_s = split_dim(scat_phi_hat_s, [num_rx, rx_array_size], 0)
-
-            # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths, 3]
-            scat_theta_hat_s = split_dim(scat_theta_hat_s, [num_tx, tx_array_size], 2)
-            scat_phi_hat_s = split_dim(scat_phi_hat_s, [num_tx, tx_array_size], 2)
-
-            # [num_rx, 1,  1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths, 3]
-            scat_theta_hat_s = np.expand_dims(scat_theta_hat_s, 1)
-            scat_phi_hat_s = np.expand_dims(scat_phi_hat_s, 1)
-
             # [num_rx, 1,  1/rx_array_size, num_tx, 1, 1/tx_array_size, max_num_paths, 3]
-            scat_theta_hat_s = np.expand_dims(scat_theta_hat_s, 4)
-            scat_phi_hat_s = np.expand_dims(scat_phi_hat_s, 4)
+            scat_theta_hat_s = scat_theta_hat_s.reshape((
+                num_rx, 1, rx_array_size,
+                num_tx, 1, tx_array_size,
+                *scat_theta_hat_s.shape[2:]))
+            scat_phi_hat_s = scat_phi_hat_s.reshape((
+                num_rx, 1, rx_array_size,
+                num_tx, 1, tx_array_size,
+                *scat_phi_hat_s.shape[1:]))
 
             # [num_rx, 1, 1/rx_array_size, num_tx, 1, 1/tx_array_size,
             #   max_num_scat_paths, 3]
-            scat_theta_hat_r = np.expand_dims(scat_theta_hat_r, axis=1)
-            scat_theta_hat_r = np.expand_dims(scat_theta_hat_r, axis=4)
+            scat_theta_hat_r = scat_theta_hat_r[:, np.newaxis, :, :, np.newaxis]
             # [num_rx, 1, 1/rx_array_size, num_tx, 1, 1/tx_array_size,
             #   max_num_scat_paths, 3]
-            scat_phi_hat_r = np.expand_dims(scat_phi_hat_r, axis=1)
-            scat_phi_hat_r = np.expand_dims(scat_phi_hat_r, axis=4)
+            scat_phi_hat_r = scat_phi_hat_r[:, np.newaxis, :, :, np.newaxis]
 
             trans_mat2 = component_transform(
                 scat_theta_hat_s, scat_phi_hat_s, scat_theta_hat_r, scat_phi_hat_r
             )
 
-            trans_mat = tf.matmul(trans_mat2, trans_mat)
+            trans_mat = trans_mat2 @ trans_mat
 
             # Compute basis transform matrix for GCS
             # [num_rx, 1, rx_array_size, num_tx, num_tx_patterns, tx_array_size,
             #   max_num_scat_paths, 2, 2]
-            trans_mat = tf.complex(trans_mat, np.zeros_like(trans_mat))
+            trans_mat = trans_mat + 0.j
 
             # Multiply a_scat by sqrt of reflected energy
             # The splitting along the last dim is done because
@@ -5168,11 +5130,11 @@ class SolverPaths(SolverBase):
 
             # [num_rx, 1, 1/rx_array_size, num_tx, num_tx_patterns,
             #   1/tx_array_size, max_num_paths-n_scat, 2]
-            e_spec = tf.complex(e_spec, np.zeros_like(e_spec))
+            e_spec = e_spec + 0.j
             a_scat = field_vec * e_spec
 
             # Basis transform
-            a_scat = tf.linalg.matvec(trans_mat, a_scat)
+            a_scat = trans_mat @ a_scat
 
             # Concat with other paths
             a = np.concatenate([a_other, a_scat], axis=-2)
@@ -5187,6 +5149,10 @@ class SolverPaths(SolverBase):
             # [ num_rx, num_rx_ant = num_rx_patterns*rx_array_size,
             #   num_tx, num_tx_ant = num_tx_patterns*tx_array_size,
             #   max_num_paths]
-            a = flatten_dims(flatten_dims(a, 2, 1), 2, 3)
+            a = a.reshape((
+                a.shape[0], a.shape[1]*a.shape[2],
+                a.shape[3], a.shape[4]*a.shape[5],
+                a.shape[6]
+            ))
 
         return a
