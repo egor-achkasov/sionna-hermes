@@ -6,8 +6,9 @@
 Class implementing a transmitter
 """
 
-import tensorflow as tf
+import numpy as np
 from .radio_device import RadioDevice
+
 
 class Transmitter(RadioDevice):
     # pylint: disable=line-too-long
@@ -50,23 +51,27 @@ class Transmitter(RadioDevice):
         Each RGB component must have a value within the range :math:`\in [0,1]`.
         Defaults to `[0.160, 0.502, 0.725]`.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
 
-    def __init__(self,
-                 name,
-                 position,
-                 orientation=(0.,0.,0.),
-                 look_at=None,
-                 color=(0.160, 0.502, 0.725),
-                 dtype=tf.complex64):
+    def __init__(
+        self,
+        name,
+        position,
+        orientation=(0.0, 0.0, 0.0),
+        look_at=None,
+        color=(0.160, 0.502, 0.725),
+        dtype=np.complex_,
+    ):
 
         # Initialize the base class Object
-        super().__init__(name=name,
-                         position=position,
-                         orientation=orientation,
-                         look_at=look_at,
-                         color=color,
-                         dtype=dtype)
+        super().__init__(
+            name=name,
+            position=position,
+            orientation=orientation,
+            look_at=look_at,
+            color=color,
+            dtype=dtype,
+        )
