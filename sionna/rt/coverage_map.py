@@ -8,9 +8,9 @@ Class that stores coverage map
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
 from .utils import rotation_matrix, mitsuba_rectangle_to_world
 import warnings
+
 
 class CoverageMap:
     # pylint: disable=line-too-long
@@ -75,51 +75,44 @@ class CoverageMap:
         :align: center
     """
 
-    def __init__(self,
-                 center,
-                 orientation,
-                 size,
-                 cell_size,
-                 value,
-                 scene,
-                 dtype=tf.complex64):
+    def __init__(
+        self, center, orientation, size, cell_size, value, scene, dtype=np.complex_
+    ):
 
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
-        if (tf.rank(center) != 1) or (tf.shape(center)[0] != 3):
+        if (center.ndim != 1) or (center.shape[0] != 3):
             msg = "`center` must be shaped as [x,y,z] (rank=1 and shape=[3])"
             raise ValueError(msg)
 
-        if (tf.rank(orientation) != 1) or (tf.shape(orientation)[0] != 3):
-            msg = "`orientation` must be shaped as [a,b,c]"\
-                  " (rank=1 and shape=[3])"
+        if (orientation.ndim != 1) or (orientation.shape[0] != 3):
+            msg = "`orientation` must be shaped as [a,b,c]" " (rank=1 and shape=[3])"
             raise ValueError(msg)
 
-        if (tf.rank(size) != 1) or (tf.shape(size)[0] != 2):
-            msg = "`size` must be shaped as [w,h]"\
-                  " (rank=1 and shape=[2])"
+        if (size.ndim != 1) or (size.shape[0] != 2):
+            msg = "`size` must be shaped as [w,h]" " (rank=1 and shape=[2])"
             raise ValueError(msg)
 
-        if (tf.rank(cell_size) != 1) or (tf.shape(cell_size)[0] != 2):
-            msg = "`cell_size` must be shaped as [w,h]"\
-                  " (rank=1 and shape=[2])"
+        if (cell_size.ndim != 1) or (cell_size.ndim[0] != 2):
+            msg = "`cell_size` must be shaped as [w,h]" " (rank=1 and shape=[2])"
             raise ValueError(msg)
 
-        num_cells_x = tf.cast(tf.math.ceil(size[0]/cell_size[0]), tf.int32)
-        num_cells_y = tf.cast(tf.math.ceil(size[1]/cell_size[1]), tf.int32)
+        num_cells_x = int(np.ceil(size[0] / cell_size[0]))
+        num_cells_y = int(np.ceil(size[1] / cell_size[1]))
 
-        if (tf.rank(value) != 3)\
-            or (tf.shape(value)[1] != num_cells_y)\
-            or (tf.shape(value)[2] != num_cells_x):
-            msg = "`value` must have shape"\
-                  " [num_tx, num_cells_y, num_cells_x]"
+        if (
+            (value.ndim != 3)
+            or (value.shape[1] != num_cells_y)
+            or (value.shape[2] != num_cells_x)
+        ):
+            msg = "`value` must have shape" " [num_tx, num_cells_y, num_cells_x]"
             raise ValueError(msg)
 
-        self._center = tf.cast(center, self._rdtype)
-        self._orientation = tf.cast(orientation, self._rdtype)
-        self._size = tf.cast(size, self._rdtype)
-        self._cell_size = tf.cast(cell_size, self._rdtype)
-        self._value = tf.cast(value, self._rdtype)
+        self._center = np.astype(center)
+        self._orientation = np.astype(orientation)
+        self._size = np.astype(size)
+        self._cell_size = np.astype(cell_size)
+        self._value = np.astype(value)
         self._transmitters = scene.transmitters
         # Dict mapping names to index for transmitters
         self._tx_name_2_ind = {}
@@ -131,40 +124,39 @@ class CoverageMap:
         # coordinate system
         ###############################################################
         # [num_cells_x]
-        x_positions = tf.range(num_cells_x, dtype=self._rdtype)
-        x_positions = (x_positions + 0.5)*self._cell_size[0]
+        x_positions = np.range(num_cells_x, dtype=self._rdtype)
+        x_positions = (x_positions + 0.5) * self._cell_size[0]
         # [num_cells_x, num_cells_y]
-        x_positions = tf.expand_dims(x_positions, axis=1)
-        x_positions = tf.tile(x_positions, [1, num_cells_y])
+        x_positions = np.expand_dims(x_positions, axis=1)
+        x_positions = np.tile(x_positions, [1, num_cells_y])
         # [num_cells_y]
-        y_positions = tf.range(num_cells_y, dtype=self._rdtype)
-        y_positions = (y_positions + 0.5)*self._cell_size[1]
+        y_positions = np.range(num_cells_y, dtype=self._rdtype)
+        y_positions = (y_positions + 0.5) * self._cell_size[1]
         # [num_cells_x, num_cells_y]
-        y_positions = tf.expand_dims(y_positions, axis=0)
-        y_positions = tf.tile(y_positions, [num_cells_x, 1])
+        y_positions = np.expand_dims(y_positions, axis=0)
+        y_positions = np.tile(y_positions, [num_cells_x, 1])
         # [num_cells_x, num_cells_y, 2]
-        cell_pos = tf.stack([x_positions, y_positions], axis=-1)
+        cell_pos = np.stack([x_positions, y_positions], axis=-1)
         # Move to global coordinate system
         # [1, 1, 2]
-        size = expand_to_rank(self._size, tf.rank(cell_pos), 0)
+        size = self._size[np.newaxis, np.newaxis, :]
         # [num_cells_x, num_cells_y, 2]
-        cell_pos = cell_pos - size*0.5
+        cell_pos = cell_pos - size * 0.5
         # [num_cells_x, num_cells_y, 3]
-        cell_pos = tf.concat([cell_pos,
-                                tf.zeros([num_cells_x, num_cells_y, 1],
-                                        dtype=self._rdtype)],
-                                axis=-1)
+        cell_pos = np.concatenate(
+            [cell_pos, np.zeros([num_cells_x, num_cells_y, 1], dtype=self._rdtype)],
+            axis=-1,
+        )
         # [3, 3]
         rot_cm_2_gcs = rotation_matrix(self._orientation)
         # [1, 1, 3, 3]
-        rot_cm_2_gcs_ = expand_to_rank(rot_cm_2_gcs, tf.rank(cell_pos)+1,
-                                        axis=0)
+        rot_cm_2_gcs_ = rot_cm_2_gcs[np.newaxis, np.newaxis, :, :]
         # [num_cells_x, num_cells_y, 3]
-        cell_pos = tf.linalg.matvec(rot_cm_2_gcs_, cell_pos)
+        cell_pos = rot_cm_2_gcs_ @ cell_pos
         # [num_cells_x, num_cells_y, 3]
         cell_pos = cell_pos + self._center
         # [num_cells_y, num_cells_x, 3]
-        cell_pos = tf.transpose(cell_pos, [1,0,2])
+        cell_pos = np.transpose(cell_pos, [1, 0, 2])
         self._cell_pos = cell_pos
 
         ######################################################################
@@ -172,50 +164,50 @@ class CoverageMap:
         ######################################################################
         # [num_tx/num_rx/num_ris, 3]
         tx_pos = [tx.position for tx in scene.transmitters.values()]
-        tx_pos = tf.stack(tx_pos, axis=0)
+        tx_pos = np.stack(tx_pos, axis=0)
 
         rx_pos = [rx.position for rx in scene.receivers.values()]
-        rx_pos = tf.stack(rx_pos, axis=0)
-        if len(rx_pos)==0:
-            rx_pos = tf.zeros([0,3], dtype=self._rdtype)
+        rx_pos = np.stack(rx_pos, axis=0)
+        if len(rx_pos) == 0:
+            rx_pos = np.zeros([0, 3], dtype=self._rdtype)
 
         ris_pos = [ris.position for ris in scene.ris.values()]
-        ris_pos = tf.stack(ris_pos, axis=0)
-        if len(ris_pos)==0:
-            ris_pos = tf.zeros([0,3], dtype=self._rdtype)
+        ris_pos = np.stack(ris_pos, axis=0)
+        if len(ris_pos) == 0:
+            ris_pos = np.zeros([0, 3], dtype=self._rdtype)
 
         # [num_tx/num_rx/num_ris, 3]
-        center_ = tf.expand_dims(self._center, axis=0)
+        center_ = np.expand_dims(self._center, axis=0)
         tx_pos = tx_pos - center_
         rx_pos = rx_pos - center_
         ris_pos = ris_pos - center_
 
         # [3, 3]
-        rot_gcs_2_cm = tf.transpose(rot_cm_2_gcs)
+        rot_gcs_2_cm = np.transpose(rot_cm_2_gcs)
         # [1, 3, 3]
-        rot_gcs_2_cm_ = tf.expand_dims(rot_gcs_2_cm, axis=0)
+        rot_gcs_2_cm_ = np.expand_dims(rot_gcs_2_cm, axis=0)
         # Positions in the coverage map system
         # [num_tx/num_rx/num_ris, 3]
-        tx_pos = tf.linalg.matvec(rot_gcs_2_cm_, tx_pos)
-        rx_pos = tf.linalg.matvec(rot_gcs_2_cm_, rx_pos)
-        ris_pos = tf.linalg.matvec(rot_gcs_2_cm_, ris_pos)
+        tx_pos = rot_gcs_2_cm_ @ tx_pos
+        rx_pos = rot_gcs_2_cm_ @ rx_pos
+        ris_pos = rot_gcs_2_cm_ @ ris_pos
 
         # Keep only x and y
         # [num_tx/num_rx/num_ris, 2]
-        tx_pos = tx_pos[:,:2]
-        rx_pos = rx_pos[:,:2]
-        ris_pos = ris_pos[:,:2]
+        tx_pos = tx_pos[:, :2]
+        rx_pos = rx_pos[:, :2]
+        ris_pos = ris_pos[:, :2]
 
         # Using the bottom left corner as origin
         # [num_tx/num_rx/num_ris, 2]
-        tx_pos = tx_pos + self._size*0.5
-        rx_pos = rx_pos + self._size*0.5
-        ris_pos = ris_pos + self._size*0.5
+        tx_pos = tx_pos + self._size * 0.5
+        rx_pos = rx_pos + self._size * 0.5
+        ris_pos = ris_pos + self._size * 0.5
         # Quantizing
         # [num_tx/num_rx/num_ris, 2]
-        tx_pos = tf.cast(tf.math.floor(tx_pos/self._cell_size), tf.int32)
-        rx_pos = tf.cast(tf.math.floor(rx_pos/self._cell_size), tf.int32)
-        ris_pos = tf.cast(tf.math.floor(ris_pos/self._cell_size), tf.int32)
+        tx_pos = np.floor(tx_pos / self._cell_size).astype(np.int_)
+        rx_pos = np.floor(rx_pos / self._cell_size).astype(np.int_)
+        ris_pos = np.floor(ris_pos / self._cell_size).astype(np.int_)
 
         self._tx_pos = tx_pos
         self._rx_pos = rx_pos
@@ -291,8 +283,9 @@ class CoverageMap:
         """
         return self._value
 
-    def show(self, tx=0, vmin=None, vmax=None,
-              show_tx=True, show_rx=False, show_ris=False):
+    def show(
+        self, tx=0, vmin=None, vmax=None, show_tx=True, show_rx=False, show_ris=False
+    ):
         r"""show(tx=0, vmin=None, vmax=None, show_tx=True)
 
         Visualizes a coverage map
@@ -343,34 +336,41 @@ class CoverageMap:
 
         # Catch expected div-by-zero warnings
         with warnings.catch_warnings(record=True) as _:
-            cm = 10.*np.log10(self[tx].numpy())
+            cm = 10.0 * np.log10(self[tx].numpy())
 
         # Position of the transmitter
 
         # Visualization the coverage map
         fig = plt.figure()
-        plt.imshow(cm, origin='lower', vmin=vmin, vmax=vmax)
-        plt.colorbar(label='Path gain [dB]')
-        plt.xlabel('Cell index (X-axis)')
-        plt.ylabel('Cell index (Y-axis)')
+        plt.imshow(cm, origin="lower", vmin=vmin, vmax=vmax)
+        plt.colorbar(label="Path gain [dB]")
+        plt.xlabel("Cell index (X-axis)")
+        plt.ylabel("Cell index (Y-axis)")
         # Visualizing transmitter, receiver, RIS positions
         if show_tx:
             tx_pos = self._tx_pos[tx]
-            fig.axes[0].scatter(*tx_pos, marker='P', c='r')
+            fig.axes[0].scatter(*tx_pos, marker="P", c="r")
 
         if show_rx:
             for rx_pos in self._rx_pos:
-                fig.axes[0].scatter(*rx_pos, marker='x', c='b')
+                fig.axes[0].scatter(*rx_pos, marker="x", c="b")
 
         if show_ris:
             for ris_pos in self._ris_pos:
-                fig.axes[0].scatter(*ris_pos, marker='*', c='k')
+                fig.axes[0].scatter(*ris_pos, marker="*", c="k")
 
         return fig
 
-    def sample_positions(self, batch_size, tx=0, min_gain_db=None,
-                         max_gain_db=None, min_dist=None, max_dist=None,
-                         center_pos=False):
+    def sample_positions(
+        self,
+        batch_size,
+        tx=0,
+        min_gain_db=None,
+        max_gain_db=None,
+        min_dist=None,
+        max_dist=None,
+        center_pos=False,
+    ):
         # pylint: disable=line-too-long
         r"""Sample random user positions from a coverage map
 
@@ -441,7 +441,7 @@ class CoverageMap:
 
         Output
         ------
-        : [batch_size, 3], tf.float
+        : [batch_size, 3], np.float_
             Random positions :math:`(x,y,z)` [m] that are in cells fulfilling the
             above constraints w.r.t. distance and path gain
         """
@@ -460,27 +460,23 @@ class CoverageMap:
             raise ValueError("Invalid type for `tx`: Must be a string or int")
 
         # allow float values for batch_size
-        if not isinstance(batch_size, (int, float)) or not batch_size%1==0:
+        if not isinstance(batch_size, (int, float)) or not batch_size % 1 == 0:
             raise ValueError("batch_size must be int.")
 
         if min_gain_db is None:
-            min_gain_db = -1. * np.infty
-        min_gain_db = tf.constant(min_gain_db, self._rdtype)
+            min_gain_db = -1.0 * np.infty
 
         if max_gain_db is None:
             max_gain_db = np.infty
-        max_gain_db = tf.constant(max_gain_db, self._rdtype)
 
         if min_gain_db > max_gain_db:
             raise ValueError("min_gain_db cannot be larger than max_gain_db.")
 
         if min_dist is None:
-            min_dist = 0.
-        min_dist = tf.constant(min_dist, self._rdtype)
+            min_dist = 0.0
 
         if max_dist is None:
             max_dist = np.infty
-        max_dist = tf.constant(max_dist, self._rdtype)
 
         if min_dist > max_dist:
             raise ValueError("min_dist cannot be larger than max_dist.")
@@ -488,54 +484,49 @@ class CoverageMap:
         cell_centers = self.cell_centers
 
         # Translate cm from lin. to dB scale
-        cm_db = 10.*log10(self._value[tx, :, :])
+        cm_db = 10.0 * np.log10(self._value[tx, :, :])
 
         # Set min and max distance
-        tx_pos = tf.cast(tf.reshape(tx_pos, (1,1,3)), dtype=self._rdtype)
-        d = tf.math.reduce_euclidean_norm(cell_centers - tx_pos, axis=2)
-        cm_inf = tf.constant(-1. * np.infty, shape=(1,1), dtype=self._rdtype)
-        cm_inf = tf.tile(cm_inf, cm_db.shape)
-        cm_db = tf.where(d < min_dist, cm_inf, cm_db) # min dist
-        cm_db = tf.where(d > max_dist, cm_inf, cm_db) # max dist
+        tx_pos = np.reshape(tx_pos, (1, 1, 3)).astype(self._rdtype)
+        d = np.linalg.norm(cell_centers - tx_pos, axis=2)
+        cm_inf = np.reshape(-1.0 * np.infty, (1, 1))
+        cm_inf = np.tile(cm_inf, cm_db.shape)
+        cm_db = np.where(d < min_dist, cm_inf, cm_db)  # min dist
+        cm_db = np.where(d > max_dist, cm_inf, cm_db)  # max dist
 
         # Get all indices of positions with large enough path_gain
-        idx = tf.where(tf.math.logical_and(cm_db > min_gain_db,
-                                           cm_db < max_gain_db))
+        idx = np.where(np.logical_and(cm_db > min_gain_db, cm_db < max_gain_db))
 
         # Duplicate indices if requested batch_size > num_idx
-        # Cast from tf.int32 to tf.float64 to ensure TF2.10-2.12 compatibility
         # with tf.math.divide_no_nan function
-        reps = tf.math.ceil(tf.math.divide_no_nan(
-                                            tf.cast(batch_size, tf.float64),
-                                            tf.cast(idx.shape[0], tf.float64)))
-        reps = tf.cast(tf.expand_dims(reps, axis=0), tf.int32)
-        reps = tf.concat((reps, tf.ones_like(tf.cast(idx.shape[1:],tf.int32))),
-                         axis=0)
-        idx = tf.tile(idx, reps) # and repeat positions
+        reps = 0. if idx.shape[0] == 0 else np.ceil(batch_size / idx.shape[0])
+        reps = np.expand_dims(reps, axis=0)
+        reps = np.concatenate((reps, np.ones_like(idx.shape[1:])), axis=0)
+        idx = np.tile(idx, reps)  # and repeat positions
 
         # Randomly permute indices
-        idx = tf.random.shuffle(idx)
+        idx = np.random.shuffle(idx)
 
         # Sample batch_size random positions
-        ue_pos = tf.gather_nd(self.cell_centers, idx[:batch_size])
+        ue_pos = np.take_along_axis(self.cell_centers, idx[:batch_size])
 
         # Add random offset within cell-size, if positions should not be
         # centered
         if not center_pos:
             # cell can be rotated
-            dir_x = tf.expand_dims(0.5*(cell_centers[0,0] - cell_centers[1,0]),
-                                   axis=0)
-            dir_y = tf.expand_dims(0.5*(cell_centers[0,0] - cell_centers[0,1]),
-                                   axis=0)
+            dir_x = np.expand_dims(
+                0.5 * (cell_centers[0, 0] - cell_centers[1, 0]), axis=0
+            )
+            dir_y = np.expand_dims(
+                0.5 * (cell_centers[0, 0] - cell_centers[0, 1]), axis=0
+            )
 
-            rand_x = tf.random.uniform((batch_size,1),
-                                        minval=-1.,
-                                        maxval=1.,
-                                        dtype=self._rdtype)
-            rand_y = tf.random.uniform((batch_size,1),
-                                        minval=-1.,
-                                        maxval=1.,
-                                        dtype=self._rdtype)
+            rand_x = np.random.uniform(
+                (batch_size, 1), minval=-1.0, maxval=1.0, dtype=self._rdtype
+            )
+            rand_y = np.random.uniform(
+                (batch_size, 1), minval=-1.0, maxval=1.0, dtype=self._rdtype
+            )
 
             ue_pos += rand_x * dir_x + rand_y * dir_y
 
@@ -551,8 +542,7 @@ class CoverageMap:
         to_world : :class:`mitsuba.ScalarTransform4f`
             Rectangle to world transformation
         """
-        return mitsuba_rectangle_to_world(self._center, self._orientation,
-                                          self._size)
+        return mitsuba_rectangle_to_world(self._center, self._orientation, self._size)
 
     def __getitem__(self, key):
         if isinstance(key, str):
@@ -565,18 +555,17 @@ class CoverageMap:
 
             if isinstance(tx, int):
                 if tx >= self.num_tx:
-                    raise ValueError("Invalid transmitter index:"\
-                                    f" expected [0..{self.num_tx}], found {tx}")
+                    raise ValueError(
+                        "Invalid transmitter index:"
+                        f" expected [0..{self.num_tx}], found {tx}"
+                    )
             elif isinstance(tx, str):
                 if tx not in self._tx_name_2_ind:
                     raise ValueError(f"Unknown transmitter with name '{tx}'")
                 tx = self._tx_name_2_ind[tx]
             else:
-                raise ValueError("Invalid type for `tx`:"\
-                                 " Must be a string or int")
+                raise ValueError("Invalid type for `tx`:" " Must be a string or int")
 
-            key = type(key)((
-                tx, *key[1:]
-            ))
+            key = type(key)((tx, *key[1:]))
 
         return self._value[key]
