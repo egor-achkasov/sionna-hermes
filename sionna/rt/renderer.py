@@ -10,16 +10,26 @@ import drjit as dr
 import matplotlib
 import mitsuba as mi
 import numpy as np
-import tensorflow as tf
 
 from .camera import Camera
 from .utils import paths_to_segments, scene_scale, mitsuba_rectangle_to_world
 
 
-def render(scene, camera, paths, show_paths, show_devices, num_samples,
-           resolution, fov,
-           coverage_map=None, cm_tx=0, cm_db_scale=True,
-           cm_vmin=None, cm_vmax=None):
+def render(
+    scene,
+    camera,
+    paths,
+    show_paths,
+    show_devices,
+    num_samples,
+    resolution,
+    fov,
+    coverage_map=None,
+    cm_tx=0,
+    cm_db_scale=True,
+    cm_vmin=None,
+    cm_vmax=None,
+):
     r"""
     Renders two images with path tracing:
     1. Base scene with the meshes
@@ -85,43 +95,43 @@ def render(scene, camera, paths, show_paths, show_devices, num_samples,
     s1 = scene.mi_scene
     sensor = make_render_sensor(scene, camera, resolution=resolution, fov=fov)
 
-    integrator = mi.load_dict({
-        'type': 'path',
-        'max_depth': 8,
-        'hide_emitters': True,
-    })
+    integrator = mi.load_dict({"type": "path", "max_depth": 8, "hide_emitters": True})
     img1 = mi.render(s1, sensor=sensor, integrator=integrator, spp=num_samples)
     img1 = img1.numpy()
 
     needs_compositing = (
-        (show_paths and paths is not None)
-        or (coverage_map is not None)
-        or show_devices
+        (show_paths and paths is not None) or (coverage_map is not None) or show_devices
     )
     if needs_compositing:
         if coverage_map is not None:
             coverage_map = _coverage_map_to_textured_rectangle(
-                coverage_map, tx=cm_tx, db_scale=cm_db_scale,
-                vmin=cm_vmin, vmax=cm_vmax,
-                viewpoint=sensor.world_transform().translation())
+                coverage_map,
+                tx=cm_tx,
+                db_scale=cm_db_scale,
+                vmin=cm_vmin,
+                vmax=cm_vmax,
+                viewpoint=sensor.world_transform().translation(),
+            )
 
-        s2 = results_to_mitsuba_scene(scene, paths=paths,
-                                      show_paths=show_paths,
-                                      show_devices=show_devices,
-                                      coverage_map=coverage_map)
-        depth_integrator = mi.load_dict({
-            'type': 'depth'
-        })
+        s2 = results_to_mitsuba_scene(
+            scene,
+            paths=paths,
+            show_paths=show_paths,
+            show_devices=show_devices,
+            coverage_map=coverage_map,
+        )
+        depth_integrator = mi.load_dict({"type": "depth"})
 
-        depth1 = mi.render(s1, sensor=sensor, integrator=depth_integrator,
-                           spp=num_samples)
+        depth1 = mi.render(
+            s1, sensor=sensor, integrator=depth_integrator, spp=num_samples
+        )
         depth1 = unmultiply_alpha(depth1.numpy())
 
-        img2 = mi.render(s2, sensor=sensor, integrator=integrator,
-                         spp=num_samples)
+        img2 = mi.render(s2, sensor=sensor, integrator=integrator, spp=num_samples)
         img2 = img2.numpy()
-        depth2 = mi.render(s2, sensor=sensor, integrator=depth_integrator,
-                           spp=num_samples)
+        depth2 = mi.render(
+            s2, sensor=sensor, integrator=depth_integrator, spp=num_samples
+        )
         depth2 = unmultiply_alpha(depth2.numpy())
 
         # Alpha compositing using the renderings (stored as pre-multiplied
@@ -132,11 +142,7 @@ def render(scene, camera, paths, show_paths, show_devices, num_samples,
 
         # Use the composite only in unoccluded regions (based on depth info)
         # TODO: can probably do a nicer transition based on depth values
-        img3 = np.where(
-            (alpha1[:, :, None] > 0) & (depth1 < depth2),
-            img1,
-            composite
-        )
+        img3 = np.where((alpha1[:, :, None] > 0) & (depth1 < depth2), img1, composite)
         img3[:, :, 3] = np.maximum(img1[:, :, 3], composite[:, :, 3])
 
     else:
@@ -144,6 +150,7 @@ def render(scene, camera, paths, show_paths, show_devices, num_samples,
         img3 = img1
 
     return mi.Bitmap(img3)
+
 
 def make_render_sensor(scene, camera, resolution, fov):
     r"""
@@ -168,27 +175,25 @@ def make_render_sensor(scene, camera, resolution, fov):
     : :class:`~mitsuba.Sensor`
         A Mitsuba sensor (camera)
     """
-    props = {
-        'type': 'perspective',
-    }
+    props = {"type": "perspective"}
 
     if isinstance(camera, str):
 
-        if camera == 'preview':
+        if camera == "preview":
             # Use the viewpoint from the preview.
             w = scene.preview_widget
             if w is None:
-                raise RuntimeError("Could not find an open preview widget, "
-                                   "please call `scene.preview()` first.")
+                raise RuntimeError(
+                    "Could not find an open preview widget, "
+                    "please call `scene.preview()` first."
+                )
 
             cam = w.camera
-            props['to_world'] = mi.ScalarTransform4f.look_at(
-                origin=cam.position,
-                target=w.orbit.target,
-                up=(0, 0, 1),
+            props["to_world"] = mi.ScalarTransform4f.look_at(
+                origin=cam.position, target=w.orbit.target, up=(0, 0, 1)
             )
-            props['near_clip'] = cam.near
-            props['far_clip'] = cam.far
+            props["near_clip"] = cam.near
+            props["far_clip"] = cam.far
             del w, cam
 
         else:
@@ -199,16 +204,16 @@ def make_render_sensor(scene, camera, resolution, fov):
 
     if isinstance(camera, Camera):
         world_transform = camera.world_transform.matrix.numpy()
-        props['to_world'] = mi.ScalarTransform4f(world_transform)
-        props['near_clip'] = 0.1
-        props['far_clip'] = 10000
+        props["to_world"] = mi.ScalarTransform4f(world_transform)
+        props["near_clip"] = 0.1
+        props["far_clip"] = 10000
 
     elif isinstance(camera, mi.Sensor):
         sensor_params = mi.traverse(camera)
         world_transform = camera.world_transform().matrix.numpy()
-        props['to_world'] = mi.ScalarTransform4f(world_transform)
-        props['near_clip'] = sensor_params['near_clip']
-        props['far_clip'] = sensor_params['far_clip']
+        props["to_world"] = mi.ScalarTransform4f(world_transform)
+        props["near_clip"] = sensor_params["near_clip"]
+        props["far_clip"] = sensor_params["far_clip"]
 
     elif isinstance(camera, str):
         # Do nothing as this was already handled. This is to avoid wrongly
@@ -216,23 +221,22 @@ def make_render_sensor(scene, camera, resolution, fov):
         pass
 
     else:
-        raise ValueError(f'Unsupported camera type: {type(camera)}')
+        raise ValueError(f"Unsupported camera type: {type(camera)}")
 
     if fov is not None:
-        props['fov'] = fov
-        props['fov_axis'] = 'x'
-    props['film'] = {
-        'type': 'hdrfilm',
-        'width': resolution[0],
-        'height': resolution[1],
-        'pixel_format': 'rgba',
-        'rfilter': {'type': 'box'},
+        props["fov"] = fov
+        props["fov_axis"] = "x"
+    props["film"] = {
+        "type": "hdrfilm",
+        "width": resolution[0],
+        "height": resolution[1],
+        "pixel_format": "rgba",
+        "rfilter": {"type": "box"},
     }
     return mi.load_dict(props)
 
 
-def results_to_mitsuba_scene(scene, paths, show_paths, show_devices,
-                             coverage_map=None):
+def results_to_mitsuba_scene(scene, paths, show_paths, show_devices, coverage_map=None):
     """
     Builds a Mitsuba scene with only the paths
 
@@ -265,52 +269,47 @@ def results_to_mitsuba_scene(scene, paths, show_paths, show_devices,
     : :class:`~mitsuba.Scene`
         A Mitsuba scene
     """
-    objects = {
-        'type': 'scene',
-    }
+    objects = {"type": "scene"}
     sc, tx_positions, rx_positions, ris_positions, _ = scene_scale(scene)
     ris_orientations = [ris.orientation for ris in scene.ris.values()]
     ris_sizes = [ris.size for ris in scene.ris.values()]
-    transmitter_colors = [transmitter.color.numpy() for
-                          transmitter in scene.transmitters.values()]
-    receiver_colors = [receiver.color.numpy() for
-                       receiver in scene.receivers.values()]
-    ris_colors = [ris.color.numpy() for
-                           ris in scene.ris.values()]
+    transmitter_colors = [
+        transmitter.color.numpy() for transmitter in scene.transmitters.values()
+    ]
+    receiver_colors = [receiver.color.numpy() for receiver in scene.receivers.values()]
+    ris_colors = [ris.color.numpy() for ris in scene.ris.values()]
 
     # --- Radio devices, shown as spheres
     if show_devices:
         radius = max(0.0025 * sc, 1)
-        for source, color in ((tx_positions, transmitter_colors),
-                              (rx_positions, receiver_colors)):
+        for source, color in (
+            (tx_positions, transmitter_colors),
+            (rx_positions, receiver_colors),
+        ):
             for index, (k, p) in enumerate(source.items()):
-                key = 'rd-' + k
+                key = "rd-" + k
                 assert key not in objects
                 objects[key] = {
-                    'type': 'sphere',
-                    'center': p,
-                    'radius': radius,
-                    'light': {
-                        'type': 'area',
-                        'radiance': {'type': 'rgb', 'value': color[index]},
+                    "type": "sphere",
+                    "center": p,
+                    "radius": radius,
+                    "light": {
+                        "type": "area",
+                        "radiance": {"type": "rgb", "value": color[index]},
                     },
                 }
 
     # --- RIS, shown as rectangles
     if show_devices:
-        for k, o, s, c in zip(ris_positions, ris_orientations, ris_sizes,
-                              ris_colors):
-            p = tf.constant(ris_positions[k])
-            key = 'ris-' + k
+        for k, o, s, c in zip(ris_positions, ris_orientations, ris_sizes, ris_colors):
+            p = ris_positions[k]
+            key = "ris-" + k
             assert key not in objects
             to_world = mitsuba_rectangle_to_world(p, o, s, ris=True)
             objects[key] = {
-                'type': 'rectangle',
-                'to_world': to_world,
-                'light': {
-                    'type': 'area',
-                    'radiance': {'type': 'rgb', 'value': c},
-                },
+                "type": "rectangle",
+                "to_world": to_world,
+                "light": {"type": "area", "radiance": {"type": "rgb", "value": c}},
             }
 
     # --- Paths, shown as cylinders (the closest we have to lines)
@@ -320,19 +319,19 @@ def results_to_mitsuba_scene(scene, paths, show_paths, show_devices,
 
         for i, (s, e) in enumerate(zip(starts, ends)):
             # TODO: avoid the shearing warning
-            objects[f'path-{i:06d}'] = {
-                'type': 'cylinder',
-                'p0': s,
-                'p1': e,
-                'radius': 0.25,
-                'light': {
-                    'type': 'area',
-                    'radiance': {'type': 'rgb', 'value': path_color},
+            objects[f"path-{i:06d}"] = {
+                "type": "cylinder",
+                "p0": s,
+                "p1": e,
+                "radius": 0.25,
+                "light": {
+                    "type": "area",
+                    "radiance": {"type": "rgb", "value": path_color},
                 },
             }
 
     if coverage_map is not None:
-        objects['coverage-map'] = coverage_map
+        objects["coverage-map"] = coverage_map
 
     # Temporarily raise log level to silence warning about cylinders shearing
     # TODO: shouldn't need this, maybe the warning is too sensitive
@@ -345,35 +344,25 @@ def results_to_mitsuba_scene(scene, paths, show_paths, show_devices,
     return new_scene
 
 
-def _coverage_map_to_textured_rectangle(coverage_map, tx=0, db_scale=True,
-                                        vmin=None, vmax=None,
-                                        viewpoint=None):
+def _coverage_map_to_textured_rectangle(
+    coverage_map, tx=0, db_scale=True, vmin=None, vmax=None, viewpoint=None
+):
     to_world = coverage_map.to_world()
     # Resample values from cell centers to cell corners
-    coverage_map = resample_to_corners(
-        coverage_map[tx, :, :].numpy().squeeze()
-    )
+    coverage_map = resample_to_corners(coverage_map[tx, :, :].numpy().squeeze())
 
     texture, opacity = _coverage_map_texture(
-        coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax)
+        coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax
+    )
     bsdf = {
-        'type': 'mask',
-        'opacity': {
-            'type': 'bitmap',
-            'bitmap': mi.Bitmap(opacity.astype(np.float32)),
-        },
-        'nested': {
-            'type': 'diffuse',
-            'reflectance': 0.,
-        },
+        "type": "mask",
+        "opacity": {"type": "bitmap", "bitmap": mi.Bitmap(opacity.astype(np.float32))},
+        "nested": {"type": "diffuse", "reflectance": 0.0},
     }
 
     emitter = {
-        'type': 'area',
-        'radiance': {
-            'type': 'bitmap',
-            'bitmap': mi.Bitmap(texture.astype(np.float32)),
-        },
+        "type": "area",
+        "radiance": {"type": "bitmap", "bitmap": mi.Bitmap(texture.astype(np.float32))},
     }
 
     flip_normal = False
@@ -388,25 +377,24 @@ def _coverage_map_to_textured_rectangle(coverage_map, tx=0, db_scale=True,
         flip_normal = dr.dot(plane_center - viewpoint.numpy(), normal) < 0
 
     return {
-        'type': 'rectangle',
-        'flip_normals': flip_normal,
-        'to_world': to_world,
-        'bsdf': bsdf,
-        'emitter': emitter,
+        "type": "rectangle",
+        "flip_normals": flip_normal,
+        "to_world": to_world,
+        "bsdf": bsdf,
+        "emitter": emitter,
     }
 
 
-def coverage_map_color_mapping(coverage_map, db_scale=True,
-                               vmin=None, vmax=None):
+def coverage_map_color_mapping(coverage_map, db_scale=True, vmin=None, vmax=None):
     """
     Prepare a Matplotlib color maps and normalizing helper based on the
     requested value scale to be displayed.
     Also applies the dB scaling to a copy of the coverage map, if requested.
     """
-    valid = np.logical_and(coverage_map > 0., np.isfinite(coverage_map))
+    valid = np.logical_and(coverage_map > 0.0, np.isfinite(coverage_map))
     coverage_map = coverage_map.copy()
     if db_scale:
-        coverage_map[valid] = 10. * np.log10(coverage_map[valid])
+        coverage_map[valid] = 10.0 * np.log10(coverage_map[valid])
     else:
         coverage_map[valid] = coverage_map[valid]
 
@@ -415,7 +403,7 @@ def coverage_map_color_mapping(coverage_map, db_scale=True,
     if vmax is None:
         vmax = coverage_map[valid].max()
     normalizer = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
-    color_map = matplotlib.colormaps.get_cmap('viridis')
+    color_map = matplotlib.colormaps.get_cmap("viridis")
     return coverage_map, normalizer, color_map
 
 
@@ -426,23 +414,21 @@ def resample_to_corners(values):
     cell corners.
     """
     assert values.ndim == 2
-    padded = np.pad(values, pad_width=((1, 1), (1, 1)), mode='edge')
+    padded = np.pad(values, pad_width=((1, 1), (1, 1)), mode="edge")
     return 0.25 * (
-          padded[ :-1,  :-1]
-        + padded[1:  ,  :-1]
-        + padded[ :-1, 1:  ]
-        + padded[1:  , 1:  ]
+        padded[:-1, :-1] + padded[1:, :-1] + padded[:-1, 1:] + padded[1:, 1:]
     )
 
 
 def _coverage_map_texture(coverage_map, db_scale=True, vmin=None, vmax=None):
     # Leave zero-valued regions as transparent
-    valid = coverage_map > 0.
+    valid = coverage_map > 0.0
     opacity = valid.astype(np.float32)
 
     # Color mapping of real values
     coverage_map, normalizer, color_map = coverage_map_color_mapping(
-        coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax)
+        coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax
+    )
     texture = color_map(normalizer(coverage_map))[:, :, :3]
     # Colors from the color map are gamma-compressed, go back to linear
     texture = np.power(texture, 2.2)
@@ -469,6 +455,6 @@ def unmultiply_alpha(arr):
     """
     arr = arr.copy()
     alpha = arr[:, :, 3]
-    weight = 1. / np.where(alpha > 0, alpha, 1.)
+    weight = 1.0 / np.where(alpha > 0, alpha, 1.0)
     arr[:, :, :3] *= weight[:, :, None]
     return arr
