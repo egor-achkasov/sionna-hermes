@@ -7,10 +7,12 @@ Implements a radio material.
 A radio material provides the EM radio properties for a specific material.
 """
 
-import tensorflow as tf
+import numpy as np
+from scipy.constants import epsilon_0 as DIELECTRIC_PERMITTIVITY_VACUUM
 
 from . import scene
 from .scattering_pattern import ScatteringPattern, LambertianPattern
+
 
 class RadioMaterial:
     # pylint: disable=line-too-long
@@ -91,28 +93,27 @@ class RadioMaterial:
         to ``relative_permittivity`` and ``conductivity``.
         Defaults to `None`.
 
-    dtype : tf.complex64 or tf.complex128
+    dtype : np.complex_ or np.complex_
         Datatype.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
 
-    def __init__(self,
-                 name,
-                 relative_permittivity=1.0,
-                 conductivity=0.0,
-                 scattering_coefficient=0.0,
-                 xpd_coefficient=0.0,
-                 scattering_pattern=None,
-                 frequency_update_callback=None,
-                 dtype=tf.complex64):
+    def __init__(
+        self,
+        name,
+        relative_permittivity=1.0,
+        conductivity=0.0,
+        scattering_coefficient=0.0,
+        xpd_coefficient=0.0,
+        scattering_pattern=None,
+        frequency_update_callback=None,
+        dtype=np.complex_,
+    ):
 
         if not isinstance(name, str):
             raise TypeError("`name` must be a string")
         self._name = name
 
-        if dtype not in (tf.complex64, tf.complex128):
-            msg = "`dtype` must be `tf.complex64` or `tf.complex128`"
-            raise ValueError(msg)
         self._dtype = dtype
         self._rdtype = dtype.real_dtype
 
@@ -138,11 +139,10 @@ class RadioMaterial:
         # material is defined by the user.
         # Note that propagation simulation cannot be done if placeholders are
         # used.
-        self._is_placeholder = False # Is this material a placeholder
+        self._is_placeholder = False  # Is this material a placeholder
 
         # Set of objects identifiers that use this material
         self._objects_using = set()
-
 
     @property
     def name(self):
@@ -161,14 +161,14 @@ class RadioMaterial:
 
     @relative_permittivity.setter
     def relative_permittivity(self, v):
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`relative_permittivity` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._relative_permittivity = v
         else:
-            self._relative_permittivity = tf.cast(v, self._rdtype)
+            self._relative_permittivity = np.asarray(v, self._rdtype)
 
     @property
     def relative_permeability(self):
@@ -177,7 +177,7 @@ class RadioMaterial:
             :math:`\mu_r` :eq:`mu`.
             Defaults to 1.
         """
-        return tf.cast(1., self._rdtype)
+        return 1.0
 
     @property
     def conductivity(self):
@@ -189,14 +189,14 @@ class RadioMaterial:
 
     @conductivity.setter
     def conductivity(self, v):
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`conductivity` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._conductivity = v
         else:
-            self._conductivity = tf.cast(v, self._rdtype)
+            self._conductivity = np.asarray(v, self._rdtype)
 
     @property
     def scattering_coefficient(self):
@@ -208,14 +208,14 @@ class RadioMaterial:
 
     @scattering_coefficient.setter
     def scattering_coefficient(self, v):
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
-                msg=f"`scattering_coefficient` must have dtype={self._rdtype}"
+                msg = f"`scattering_coefficient` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._scattering_coefficient = v
         else:
-            self._scattering_coefficient = tf.cast(v, self._rdtype)
+            self._scattering_coefficient = np.asarray(v, self._rdtype)
 
     @property
     def xpd_coefficient(self):
@@ -227,14 +227,14 @@ class RadioMaterial:
 
     @xpd_coefficient.setter
     def xpd_coefficient(self, v):
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
-                msg=f"`xpd_coefficient` must have dtype={self._rdtype}"
+                msg = f"`xpd_coefficient` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._xpd_coefficient = v
         else:
-            self._xpd_coefficient = tf.cast(v, self._rdtype)
+            self._xpd_coefficient = np.asarray(v, self._rdtype)
 
     @property
     def scattering_pattern(self):
@@ -259,9 +259,9 @@ class RadioMaterial:
         eta_prime = self.relative_permittivity
         sigma = self.conductivity
         frequency = scene.Scene().frequency
-        omega = tf.cast(2.*PI*frequency, self._rdtype)
-        return tf.complex(eta_prime,
-                          -tf.math.divide_no_nan(sigma, epsilon_0*omega))
+        omega = 2.0 * np.pi * frequency
+        epsilon_0_omega = epsilon_0 * omega
+        return eta_prime - 1.j*(0. if epsilon_0_omega == 0. else sigma / epsilon_0_omega)
 
     @property
     def frequency_update_callback(self):
@@ -279,11 +279,13 @@ class RadioMaterial:
     def well_defined(self):
         """bool : Get if the material is well-defined"""
         # pylint: disable=chained-comparison
-        return ((self._conductivity >= 0.)
-             and (self.relative_permittivity >= 1.)
-             and (0. <= self.scattering_coefficient <= 1.)
-             and (0. <= self.xpd_coefficient <= 1.)
-             and (0. <= self.scattering_pattern.lambda_ <= 1.))
+        return (
+            (self._conductivity >= 0.0)
+            and (self.relative_permittivity >= 1.0)
+            and (0.0 <= self.scattering_coefficient <= 1.0)
+            and (0.0 <= self.xpd_coefficient <= 1.0)
+            and (0.0 <= self.scattering_pattern.lambda_ <= 1.0)
+        )
 
     @property
     def use_counter(self):
@@ -304,7 +306,7 @@ class RadioMaterial:
         [num_using_objects], tf.int : Identifiers of the objects using this
         material
         """
-        tf_objects_using = tf.cast(tuple(self._objects_using), tf.int32)
+        tf_objects_using = np.asarray(tuple(self._objects_using), np.int_)
         return tf_objects_using
 
     ##############################################
@@ -314,8 +316,7 @@ class RadioMaterial:
 
     def frequency_update(self):
         # pylint: disable=line-too-long
-        r"""Callback for when the frequency is updated
-        """
+        r"""Callback for when the frequency is updated"""
         if self._frequency_update_callback is None:
             return
 
@@ -334,8 +335,9 @@ class RadioMaterial:
         """
         Remove an object from the set of objects using this material
         """
-        assert object_id in self._objects_using,\
-            f"Object with id {object_id} is not in the set of {self.name}"
+        assert (
+            object_id in self._objects_using
+        ), f"Object with id {object_id} is not in the set of {self.name}"
         self._objects_using.discard(object_id)
 
     @property
