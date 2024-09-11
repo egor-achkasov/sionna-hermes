@@ -6,8 +6,9 @@
 Class implementing a receiver
 """
 
-import tensorflow as tf
+import numpy as np
 from .radio_device import RadioDevice
+
 
 class Receiver(RadioDevice):
     # pylint: disable=line-too-long
@@ -55,18 +56,22 @@ class Receiver(RadioDevice):
         Defaults to `tf.complex64`.
     """
 
-    def __init__(self,
-                 name,
-                 position,
-                 orientation=(0.,0.,0.),
-                 look_at=None,
-                 color=(0.153, 0.682, 0.375),
-                 dtype=tf.complex64):
+    def __init__(
+        self,
+        name,
+        position,
+        orientation=(0.0, 0.0, 0.0),
+        look_at=None,
+        color=(0.153, 0.682, 0.375),
+        dtype=np.complex_,
+    ):
 
         # Initialize the base class Object
-        super().__init__(name=name,
-                         position=position,
-                         orientation=orientation,
-                         look_at=look_at,
-                         color=color,
-                         dtype=dtype)
+        super().__init__(
+            name=name,
+            position=position,
+            orientation=orientation,
+            look_at=look_at,
+            color=color,
+            dtype=dtype,
+        )
