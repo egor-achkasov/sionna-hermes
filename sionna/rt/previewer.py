@@ -13,8 +13,7 @@ from ipywidgets.embed import embed_snippet
 import pythreejs as p3s
 import matplotlib
 
-from .utils import paths_to_segments, scene_scale, rotate,\
-    mitsuba_rectangle_to_world
+from .utils import paths_to_segments, scene_scale, rotate, mitsuba_rectangle_to_world
 from .renderer import coverage_map_color_mapping
 
 
@@ -50,27 +49,29 @@ class InteractiveDisplay:
 
         # Lighting
         ambient_light = p3s.AmbientLight(intensity=0.80)
-        camera_light = p3s.DirectionalLight(
-            position=[0, 0, 0], intensity=0.25
-        )
+        camera_light = p3s.DirectionalLight(position=[0, 0, 0], intensity=0.25)
 
         # Camera & controls
         self._camera = p3s.PerspectiveCamera(
-            fov=fov, aspect=resolution[0]/resolution[1],
-            up=[0, 0, 1], far=10000,
+            fov=fov,
+            aspect=resolution[0] / resolution[1],
+            up=[0, 0, 1],
+            far=10000,
             children=[camera_light],
         )
-        self._orbit = p3s.OrbitControls(
-            controlling = self._camera
-        )
+        self._orbit = p3s.OrbitControls(controlling=self._camera)
 
         # Scene & renderer
         self._p3s_scene = p3s.Scene(
             background=background, children=[self._camera, ambient_light]
         )
         self._renderer = p3s.Renderer(
-            scene=self._p3s_scene, camera=self._camera, controls=[self._orbit],
-            width=resolution[0], height=resolution[1], antialias=True
+            scene=self._p3s_scene,
+            camera=self._camera,
+            controls=[self._orbit],
+            width=resolution[0],
+            height=resolution[1],
+            antialias=True,
         )
 
         ####################################################
@@ -99,7 +100,7 @@ class InteractiveDisplay:
         """
         remaining = []
         for obj, persist in self._objects:
-            if not persist: # Only scene objects are flagged as persistent
+            if not persist:  # Only scene objects are flagged as persistent
                 remaining.append((obj, persist))
             else:
                 self._p3s_scene.remove(obj)
@@ -114,7 +115,7 @@ class InteractiveDisplay:
         that it is located at (-1, -1, 1) on the normalized bounding box, and
         oriented toward the center of the scene.
         """
-        bbox = self._bbox if self._bbox.valid() else mi.ScalarBoundingBox3f(0.)
+        bbox = self._bbox if self._bbox.valid() else mi.ScalarBoundingBox3f(0.0)
         center = bbox.center()
 
         corner = [bbox.min.x, center.y, 1.5 * bbox.max.z]
@@ -123,8 +124,8 @@ class InteractiveDisplay:
         self._camera.position = tuple(corner)
 
         self._camera.lookAt(center)
-        self._orbit.exec_three_obj_method('update')
-        self._camera.exec_three_obj_method('updateProjectionMatrix')
+        self._orbit.exec_three_obj_method("update")
+        self._camera.exec_three_obj_method("updateProjectionMatrix")
 
     def plot_radio_devices(self, show_orientations=False):
         """
@@ -138,31 +139,31 @@ class InteractiveDisplay:
         """
         scene = self._scene
         sc, tx_positions, rx_positions, _, _ = scene_scale(scene)
-        transmitter_colors = [transmitter.color.numpy() for
-                              transmitter in scene.transmitters.values()]
-        receiver_colors = [receiver.color.numpy() for
-                           receiver in scene.receivers.values()]
+        transmitter_colors = [
+            transmitter.color.numpy() for transmitter in scene.transmitters.values()
+        ]
+        receiver_colors = [
+            receiver.color.numpy() for receiver in scene.receivers.values()
+        ]
 
         # Radio emitters, shown as points
-        p = np.array(list(tx_positions.values()) +
-                     list(rx_positions.values())
-                      )
-        albedo = np.array(transmitter_colors +
-                          receiver_colors)
+        p = np.array(list(tx_positions.values()) + list(rx_positions.values()))
+        albedo = np.array(transmitter_colors + receiver_colors)
 
         if p.shape[0] > 0:
             # Radio devices are not persistent
             radius = max(0.005 * sc, 1)
-            self._plot_points(p, persist=False, colors=albedo,
-                              radius=radius)
+            self._plot_points(p, persist=False, colors=albedo, radius=radius)
         if show_orientations:
             line_length = 0.0075 * sc
             head_length = 0.15 * line_length
             zeros = np.zeros((1, 3))
 
-            for devices in [scene.transmitters.values(),
-                            scene.receivers.values(),
-                            scene.ris.values()]:
+            for devices in [
+                scene.transmitters.values(),
+                scene.receivers.values(),
+                scene.ris.values(),
+            ]:
                 if len(devices) == 0:
                     continue
                 starts, ends = [], []
@@ -170,25 +171,29 @@ class InteractiveDisplay:
                     # Arrow line
                     color = f'rgb({", ".join([str(int(v)) for v in rd.color])})'
                     starts.append(rd.position)
-                    endpoint = rd.position + rotate([line_length, 0., 0.],
-                                                    rd.orientation)
+                    endpoint = rd.position + rotate(
+                        [line_length, 0.0, 0.0], rd.orientation
+                    )
                     ends.append(endpoint)
 
                     geo = p3s.CylinderGeometry(
-                        radiusTop=0, radiusBottom=0.3 * head_length,
-                        height=head_length, radialSegments=8,
-                        heightSegments=0, openEnded=False)
+                        radiusTop=0,
+                        radiusBottom=0.3 * head_length,
+                        height=head_length,
+                        radialSegments=8,
+                        heightSegments=0,
+                        openEnded=False,
+                    )
                     mat = p3s.MeshLambertMaterial(color=color)
                     mesh = p3s.Mesh(geo, mat)
                     mesh.position = tuple(endpoint)
                     angles = rd.orientation.numpy()
-                    mesh.rotateZ(angles[0] - np.pi/2)
+                    mesh.rotateZ(angles[0] - np.pi / 2)
                     mesh.rotateY(angles[2])
                     mesh.rotateX(-angles[1])
                     self._add_child(mesh, zeros, zeros, persist=False)
 
-                self._plot_lines(np.array(starts), np.array(ends),
-                                 width=2, color=color)
+                self._plot_lines(np.array(starts), np.array(ends), width=2, color=color)
 
     def plot_paths(self, paths):
         """
@@ -234,22 +239,25 @@ class InteractiveDisplay:
             f_offset += n_vertices
 
             albedo = s.bsdf().eval_diffuse_reflectance(si).numpy()
-            if not np.any(albedo > 0.):
+            if not np.any(albedo > 0.0):
                 if palette is None:
-                    palette = matplotlib.colormaps.get_cmap('Pastel1_r')
+                    palette = matplotlib.colormaps.get_cmap("Pastel1_r")
                 albedo[:] = palette((i % palette.N + 0.5) / palette.N)[:3]
 
             albedos.append(np.tile(albedo, (n_vertices, 1)))
 
         # Plot all objects as a single PyThreeJS mesh, which is must faster
         # than creating individual mesh objects in large scenes.
-        self._plot_mesh(np.concatenate(vertices, axis=0),
-                        np.concatenate(faces, axis=0),
-                        persist=True, # The scene geometry is persistent
-                        colors=np.concatenate(albedos, axis=0))
+        self._plot_mesh(
+            np.concatenate(vertices, axis=0),
+            np.concatenate(faces, axis=0),
+            persist=True,  # The scene geometry is persistent
+            colors=np.concatenate(albedos, axis=0),
+        )
 
-    def plot_coverage_map(self, coverage_map, tx=0, db_scale=True,
-                          vmin=None, vmax=None):
+    def plot_coverage_map(
+        self, coverage_map, tx=0, db_scale=True, vmin=None, vmax=None
+    ):
         """
         Plot the coverage map as a textured rectangle in the scene. Regions
         where the coverage map is zero-valued are made transparent.
@@ -270,42 +278,35 @@ class InteractiveDisplay:
         pmin = np.min(vertices, axis=0)
         pmax = np.max(vertices, axis=0)
 
-        faces = np.array([
-            [0, 1, 2],
-            [2, 1, 3],
-        ], dtype=np.uint32)
+        faces = np.array([[0, 1, 2], [2, 1, 3]], dtype=np.uint32)
 
-        vertex_uvs = np.array([
-            [0, 0], [1, 0], [0, 1], [1, 1]
-        ], dtype=np.float32)
+        vertex_uvs = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
 
         geo = p3s.BufferGeometry(
             attributes={
-                'position': p3s.BufferAttribute(vertices, normalized=False),
-                'index': p3s.BufferAttribute(faces.ravel(), normalized=False),
-                'uv': p3s.BufferAttribute(vertex_uvs, normalized=False),
+                "position": p3s.BufferAttribute(vertices, normalized=False),
+                "index": p3s.BufferAttribute(faces.ravel(), normalized=False),
+                "uv": p3s.BufferAttribute(vertex_uvs, normalized=False),
             }
         )
 
         to_map, normalizer, color_map = coverage_map_color_mapping(
-            coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax)
+            coverage_map, db_scale=db_scale, vmin=vmin, vmax=vmax
+        )
         texture = color_map(normalizer(to_map)).astype(np.float32)
-        texture[:, :, 3] = (coverage_map > 0.).astype(np.float32)
+        texture[:, :, 3] = (coverage_map > 0.0).astype(np.float32)
         # Pre-multiply alpha
         texture[:, :, :3] *= texture[:, :, 3, None]
 
         texture = p3s.DataTexture(
-            data=(255. * texture).astype(np.uint8),
-            format='RGBAFormat',
-            type='UnsignedByteType',
-            magFilter='NearestFilter',
-            minFilter='NearestFilter',
+            data=(255.0 * texture).astype(np.uint8),
+            format="RGBAFormat",
+            type="UnsignedByteType",
+            magFilter="NearestFilter",
+            minFilter="NearestFilter",
         )
 
-        mat = p3s.MeshLambertMaterial(
-            side='DoubleSide',
-            map=texture, transparent=True,
-        )
+        mat = p3s.MeshLambertMaterial(side="DoubleSide", map=texture, transparent=True)
         mesh = p3s.Mesh(geo, mat)
 
         self._add_child(mesh, pmin, pmax, persist=False)
@@ -318,9 +319,9 @@ class InteractiveDisplay:
 
         for ris in all_ris:
             orientation = ris.orientation
-            to_world =\
-                mitsuba_rectangle_to_world(ris.position, orientation, ris.size,
-                                           ris=True)
+            to_world = mitsuba_rectangle_to_world(
+                ris.position, orientation, ris.size, ris=True
+            )
             color = ris.color.numpy()
 
             # Create a rectangle from two triangles
@@ -333,22 +334,17 @@ class InteractiveDisplay:
             pmin = np.min(vertices, axis=0)
             pmax = np.max(vertices, axis=0)
 
-            faces = np.array([
-                [0, 1, 2],
-                [2, 1, 3],
-            ], dtype=np.uint32)
+            faces = np.array([[0, 1, 2], [2, 1, 3]], dtype=np.uint32)
 
             geo = p3s.BufferGeometry(
                 attributes={
-                    'position': p3s.BufferAttribute(vertices,
-                                                    normalized=False),
-                    'index': p3s.BufferAttribute(faces.ravel(),
-                                                 normalized=False),
+                    "position": p3s.BufferAttribute(vertices, normalized=False),
+                    "index": p3s.BufferAttribute(faces.ravel(), normalized=False),
                 }
             )
 
             color = f'rgb({", ".join([str(int(v*255)) for v in color])})'
-            mat = p3s.MeshLambertMaterial(color=color, side='DoubleSide')
+            mat = p3s.MeshLambertMaterial(color=color, side="DoubleSide")
             mesh = p3s.Mesh(geo, mat)
 
             self._add_child(mesh, pmin, pmax, persist=False)
@@ -429,24 +425,27 @@ class InteractiveDisplay:
         elif colors.ndim == 1:
             colors = np.tile(colors[None, :], (n_v, 1))
         colors = colors.astype(np.float32)
-        assert ( (colors.ndim == 2)
-             and (colors.shape[1] == 3)
-             and (colors.shape[0] == n_v) )
+        assert (
+            (colors.ndim == 2) and (colors.shape[1] == 3) and (colors.shape[0] == n_v)
+        )
 
         # Closer match to Mitsuba and Blender
-        colors = np.power(colors, 1/1.8)
+        colors = np.power(colors, 1 / 1.8)
 
         geo = p3s.BufferGeometry(
             attributes={
-                'index': p3s.BufferAttribute(faces.ravel(), normalized=False),
-                'position': p3s.BufferAttribute(vertices, normalized=False),
-                'color': p3s.BufferAttribute(colors, normalized=False)
+                "index": p3s.BufferAttribute(faces.ravel(), normalized=False),
+                "position": p3s.BufferAttribute(vertices, normalized=False),
+                "color": p3s.BufferAttribute(colors, normalized=False),
             }
         )
 
         mat = p3s.MeshStandardMaterial(
-            side='DoubleSide', metalness=0., roughness=1.0,
-            vertexColors='VertexColors', flatShading=True,
+            side="DoubleSide",
+            metalness=0.0,
+            roughness=1.0,
+            vertexColors="VertexColors",
+            flatShading=True,
         )
         mesh = p3s.Mesh(geo, mat)
         self._add_child(mesh, pmin, pmax, persist=persist)
@@ -480,21 +479,26 @@ class InteractiveDisplay:
         elif colors.ndim == 1:
             colors = np.tile(colors[None, :], (n, 1))
         colors = colors.astype(np.float32)
-        assert ( (colors.ndim == 2)
-             and (colors.shape[1] == 3)
-             and (colors.shape[0] == n) )
+        assert (colors.ndim == 2) and (colors.shape[1] == 3) and (colors.shape[0] == n)
 
-        tex = p3s.DataTexture(data=self._get_disk_sprite(), format="RGBAFormat",
-                              type="FloatType")
+        tex = p3s.DataTexture(
+            data=self._get_disk_sprite(), format="RGBAFormat", type="FloatType"
+        )
 
         points = points.astype(np.float32)
-        geo = p3s.BufferGeometry(attributes={
-            'position': p3s.BufferAttribute(points, normalized=False),
-            'color': p3s.BufferAttribute(colors, normalized=False),
-        })
+        geo = p3s.BufferGeometry(
+            attributes={
+                "position": p3s.BufferAttribute(points, normalized=False),
+                "color": p3s.BufferAttribute(colors, normalized=False),
+            }
+        )
         mat = p3s.PointsMaterial(
-            size=2*radius, sizeAttenuation=True, vertexColors='VertexColors',
-            map=tex, alphaTest=0.5, transparent=True,
+            size=2 * radius,
+            sizeAttenuation=True,
+            vertexColors="VertexColors",
+            map=tex,
+            alphaTest=0.5,
+            transparent=True,
         )
         mesh = p3s.Points(geo, mat)
         self._add_child(mesh, pmin, pmax, persist=persist)
@@ -524,7 +528,7 @@ class InteractiveDisplay:
         self._bbox.expand(pmin)
         self._bbox.expand(pmax)
 
-    def _plot_lines(self, starts, ends, width=0.5, color='black'):
+    def _plot_lines(self, starts, ends, width=0.5, color="black"):
         """
         Plots a set of `n` lines. This is used to plot the paths.
 
@@ -549,7 +553,7 @@ class InteractiveDisplay:
         assert ends.ndim == 2 and ends.shape[1] == 3
         assert starts.shape[0] == ends.shape[0]
 
-        segments = np.hstack((starts, ends)).astype(np.float32).reshape(-1,2,3)
+        segments = np.hstack((starts, ends)).astype(np.float32).reshape(-1, 2, 3)
         pmin = np.min(segments, axis=(0, 1))
         pmax = np.max(segments, axis=(0, 1))
 
@@ -576,7 +580,7 @@ class InteractiveDisplay:
 
         n = 128
         sprite = np.ones((n, n, 4))
-        sprite[:, :, 3] = 0.
+        sprite[:, :, 3] = 0.0
         # Draw a disk with an empty circle close to the edge
         ij = np.mgrid[:n, :n]
         ij = ij.reshape(2, -1)
@@ -600,8 +604,8 @@ class InteractiveDisplay:
     def _repr_mimebundle_(self, **kwargs):
         # pylint: disable=protected-access,not-callable
         bundle = self._renderer._repr_mimebundle_()
-        assert 'text/html' not in bundle
-        bundle['text/html'] = self._repr_html_()
+        assert "text/html" not in bundle
+        bundle["text/html"] = self._repr_html_()
         return bundle
 
     def _repr_html_(self):
