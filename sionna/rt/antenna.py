@@ -345,8 +345,8 @@ def polarization_model_1(c_theta, theta, phi, slant_angle):
     and :math:`\zeta=\pm \pi/4` to a pair of cross polarized
     antenna elements.
 
-    The transformed antenna pattern is given by (7.3-3) [TR38901]_: 
-    
+    The transformed antenna pattern is given by (7.3-3) [TR38901]_:
+
 
     .. math::
         \begin{align}
@@ -358,7 +358,7 @@ def polarization_model_1(c_theta, theta, phi, slant_angle):
              \sin(\psi)
             \end{bmatrix} \tilde{C}_\theta(\theta, \varphi)\\
             \cos(\psi) &= \frac{\cos(\zeta)\sin(\theta)+\sin(\zeta)\sin(\varphi)\cos(\theta)}{\sqrt{1-\left(\cos(\zeta)\cos(\theta)-\sin(\zeta)\sin(\varphi)\sin(\theta)\right)^2}} \\
-            \sin(\psi) &= \frac{\sin(\zeta)\cos(\varphi)}{\sqrt{1-\left(\cos(\zeta)\cos(\theta)-\sin(\zeta)\sin(\varphi)\sin(\theta)\right)^2}} 
+            \sin(\psi) &= \frac{\sin(\zeta)\cos(\varphi)}{\sqrt{1-\left(\cos(\zeta)\cos(\theta)-\sin(\zeta)\sin(\varphi)\sin(\theta)\right)^2}}
         \end{align}
 
 
@@ -549,8 +549,8 @@ def dipole_pattern(
         :align: center
     """
     k = complex(np.sqrt(1.5))
-    theta = float(theta,)
-    phi = float(phi,)
+    theta = float(theta)
+    phi = float(phi)
     slant_angle = float(slant_angle)
     if not theta.shape == phi.shape:
         raise ValueError("theta and phi must have the same shape.")
