@@ -65,7 +65,7 @@ class RadioDevice(Object):
     ):
 
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
         self.color = color
 
         # Position and orientation are set through this call
@@ -152,7 +152,7 @@ class RadioDevice(Object):
         x, _ = normalize(x)
         theta, phi = theta_phi_from_unit_vec(x)
         alpha = phi  # Rotation around z-axis
-        beta = theta - PI / 2  # Rotation around y-axis
+        beta = theta - np.pi / 2.  # Rotation around y-axis
         gamma = 0.0  # Rotation around x-axis
         self.orientation = (alpha, beta, gamma)
 
