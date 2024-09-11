@@ -115,7 +115,7 @@ class RadioMaterial:
         self._name = name
 
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
         if scattering_pattern is None:
             scattering_pattern = LambertianPattern(dtype=dtype)

@@ -50,7 +50,7 @@ class AntennaArray:
 
         if dtype not in (np.complex_, np.complex_):
             raise ValueError("`dtype` must be np.complex_ or np.complex_`")
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
         self.antenna = antenna
         self.positions = positions
 

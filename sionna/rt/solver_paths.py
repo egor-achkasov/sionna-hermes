@@ -54,7 +54,7 @@ class PathsTmpData:
         #     Reflected or scattered paths: Normals to the primitives at the
         #     intersection points.
         #     Diffracted paths: Normals to the two primitives forming the wedge.
-        self.normals = np.zeros([0, num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.normals = np.zeros([0, num_targets, num_sources, 0, 3], np.float_)
 
         # [max_depth + 1, num_targets, num_sources, max_num_paths, 3], np.float_
         #   Direction of arrivals.
@@ -62,19 +62,19 @@ class PathsTmpData:
         #   arrival at the target. Therefore, k_i is a tensor of length
         #   `max_depth + 1`, where `max_depth` is the number of maximum
         #   interaction (which could be zero if only LoS is requested).
-        self.k_i = np.zeros([0, num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.k_i = np.zeros([0, num_targets, num_sources, 0, 3], np.float_)
 
         # [max_depth, num_targets, num_sources, max_num_paths, 3], np.float_
         #   Direction of departures at interaction points.
         #   We do not need the direction of departure at the source, as it
         #   is the same as k_i[0].
-        self.k_r = np.zeros([0, num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.k_r = np.zeros([0, num_targets, num_sources, 0, 3], np.float_)
 
         # [max_depth+1, num_targets, num_sources, max_num_paths] or
         # [max_depth, num_targets, num_sources, max_num_paths] for scattering,
         # np.float_
         #     Lengths in meters of the paths segments
-        self.total_distance = np.zeros([num_targets, num_sources, 0], dtype.real_dtype)
+        self.total_distance = np.zeros([num_targets, num_sources, 0], np.float_)
 
         # [num_targets, num_sources, max_num_paths, 2, 2] or
         # [num_rx, rx_array_size, num_tx, tx_array_size, max_num_paths, 2, 2],
@@ -89,14 +89,14 @@ class PathsTmpData:
         #   awat from the radio device.
         # These are initialized to emtpy tensors to handle cases where no
         # paths are found
-        self.k_tx = np.zeros([num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.k_tx = np.zeros([num_targets, num_sources, 0, 3], np.float_)
 
         # [num_targets, num_sources, max_num_paths, 3], np.float_
         #   Direction of arrival. This vector is normalized and pointing
         #   awat from the radio device.
         # These are initialized to emtpy tensors to handle cases where no
         # paths are found
-        self.k_rx = np.zeros([num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.k_rx = np.zeros([num_targets, num_sources, 0, 3], np.float_)
 
         # [max_depth, num_targets, num_sources, max_num_paths], np.bool_
         #   This parameter is specific to scattering.
@@ -110,7 +110,7 @@ class PathsTmpData:
         #   gives the direction of the scattered ray, i.e., points towards the
         #   targets.
         self.scat_prefix_k_s = np.zeros(
-            [0, num_targets, num_sources, 0, 3], dtype.real_dtype
+            [0, num_targets, num_sources, 0, 3], np.float_
         )
 
         # [num_targets, num_sources, max_num_paths]
@@ -124,7 +124,7 @@ class PathsTmpData:
         #   Stores the position of the last intersection, i.e., the points at
         #   which the field is scattered
         self.scat_last_vertices = np.zeros(
-            [num_targets, num_sources, 0, 3], dtype.real_dtype
+            [num_targets, num_sources, 0, 3], np.float_
         )
 
         # [num_targets, num_sources, max_num_paths, 3]
@@ -132,35 +132,35 @@ class PathsTmpData:
         #   Stores the incoming vector for the last interaction, i.e., the
         #   one that scatters the field
         self.scat_last_k_i = np.zeros(
-            [num_targets, num_sources, 0, 3], dtype.real_dtype
+            [num_targets, num_sources, 0, 3], np.float_
         )
 
         # [num_targets, num_sources, max_num_paths, 3]
         #   This parameter is specific to scattering.
         #   Stores the outgoing vector for the last interaction, i.e., the
         #   direction of the scattered ray.
-        self.scat_k_s = np.zeros([num_targets, num_sources, 0, 3], dtype.real_dtype)
+        self.scat_k_s = np.zeros([num_targets, num_sources, 0, 3], np.float_)
 
         # [num_targets, num_sources, max_num_paths, 3]
         #   This parameter is specific to scattering.
         #   Stores the normals to the last interaction point, i.e., the
         #   scattering point
         self.scat_last_normals = np.zeros(
-            [num_targets, num_sources, 0, 3], dtype.real_dtype
+            [num_targets, num_sources, 0, 3], np.float_
         )
 
         # [num_targets, num_sources, max_num_paths]
         #   This parameter is specific to scattering.
         #   Stores the distance from the sources to the scattering points.
         self.scat_src_2_last_int_dist = np.zeros(
-            [num_targets, num_sources, 0], dtype.real_dtype
+            [num_targets, num_sources, 0], np.float_
         )
 
         # [num_targets, num_sources, max_num_paths]
         #   This parameter is specific to scattering.
         #   Stores the distance from the scattering points to the targets.
         self.scat_2_target_dist = np.zeros(
-            [num_targets, num_sources, 0], dtype.real_dtype
+            [num_targets, num_sources, 0], np.float_
         )
 
         # Number of samples, i.e., shooted rays

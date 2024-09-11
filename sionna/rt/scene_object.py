@@ -39,7 +39,7 @@ class SceneObject(Object):
     ):
 
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
         # Orientation of the object is initialized to (0,0,0)
         self._orientation = np.asarray(orientation, dtype=self._rdtype)
@@ -156,7 +156,7 @@ class SceneObject(Object):
             bounding box (AABB).
         """
         dr.sync_thread()
-        rdtype = self._scene.dtype.real_dtype
+        rdtype = np.float_
         # Bounding box
         # [3]
         bbox_min = np.asarray(self._mi_shape.bbox().min, rdtype)
@@ -175,7 +175,7 @@ class SceneObject(Object):
         # Scene parameters
         scene_params = self._scene.mi_scene_params
         # Real dtype
-        rdtype = self._scene.dtype.real_dtype
+        rdtype = np.float_
         new_position = np.asarray(new_position, rdtype)
         # [num_vertices*3]
         vertices = scene_params[f"mesh-{self.name}.vertex_positions"]

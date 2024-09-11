@@ -49,7 +49,7 @@ class CellGrid:
         if dtype not in (np.complex_, np.complex_):
             raise ValueError("`dtype` must be np.complex_ or np.complex_`")
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
         if num_rows < 3 or num_cols < 3:
             raise ValueError("num_rows and num_cols must be >= 3")
@@ -158,7 +158,7 @@ class Profile(ABC):
 
     def __init__(self, dtype=np.complex_):
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
     @property
     @abstractmethod

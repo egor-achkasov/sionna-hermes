@@ -88,7 +88,7 @@ class SolverBase:
             np.complex_8,
         ), "`dtype` must be np.complex_ or tf.complex128`"
         self._dtype = dtype
-        self._rdtype = dtype.real_dtype
+        self._rdtype = np.float_
 
         # Mitsuba types depend on the used precision
         if dtype == np.complex_:
