@@ -7,7 +7,7 @@ Class implementing a radio device, which can be either a transmitter or a
 receiver.
 """
 
-import tensorflow as tf
+import numpy as np
 
 from .object import Object
 from .utils import normalize, theta_phi_from_unit_vec
@@ -15,7 +15,7 @@ from .utils import normalize, theta_phi_from_unit_vec
 
 class RadioDevice(Object):
     # pylint: disable=line-too-long
-    r"""RadioDevice(name, position, orientation=[0.,0.,0.], look_at=None, dtype=tf.complex64)
+    r"""RadioDevice(name, position, orientation=[0.,0.,0.], look_at=None, dtype=np.complex_)
 
     Class defining a generic radio device.
 
@@ -50,30 +50,32 @@ class RadioDevice(Object):
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
 
-    def __init__(self,
-                 name,
-                 position=None,
-                 orientation=(0.,0.,0.),
-                 look_at=None,
-                 color=(0,0,0),
-                 dtype=tf.complex64,
-                 **kwargs):
+    def __init__(
+        self,
+        name,
+        position=None,
+        orientation=(0.0, 0.0, 0.0),
+        look_at=None,
+        color=(0, 0, 0),
+        dtype=np.complex_,
+        **kwargs,
+    ):
 
-        if dtype not in (tf.complex64, tf.complex128):
-            raise ValueError("`dtype` must be tf.complex64 or tf.complex128`")
         self._dtype = dtype
         self._rdtype = dtype.real_dtype
         self.color = color
 
         # Position and orientation are set through this call
-        super().__init__(name=name,
-                         position=position,
-                         orientation=orientation,
-                         look_at=look_at,
-                         **kwargs)
+        super().__init__(
+            name=name,
+            position=position,
+            orientation=orientation,
+            look_at=look_at,
+            **kwargs,
+        )
 
     @property
     def position(self):
@@ -83,15 +85,15 @@ class RadioDevice(Object):
         return self._position
 
     @position.setter
-    def position(self, v):
-        if isinstance(v, tf.Variable):
+    def position(self, v: np.ndarray):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`position` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._position = v
         else:
-            self._position = tf.cast(v, dtype=self._rdtype)
+            self._position = np.asanyarray(v, dtype=self._rdtype)
 
     @property
     def orientation(self):
@@ -102,14 +104,14 @@ class RadioDevice(Object):
 
     @orientation.setter
     def orientation(self, v):
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`orientation` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._orientation = v
         else:
-            self._orientation = tf.cast(v, dtype=self._rdtype)
+            self._orientation = np.asarray(v, dtype=self._rdtype)
 
     def look_at(self, target):
         # pylint: disable=line-too-long
@@ -133,23 +135,25 @@ class RadioDevice(Object):
         if isinstance(target, str):
             obj = self.scene.get(target)
             if not isinstance(obj, Object):
-                raise ValueError(f"No camera, device, or object named '{target}' found.")
+                raise ValueError(
+                    f"No camera, device, or object named '{target}' found."
+                )
             else:
                 target = obj.position
         elif isinstance(target, Object):
             target = target.position
         else:
-            target = tf.cast(target, dtype=self._rdtype)
-            if not target.shape[0]==3:
+            target = np.asarray(target, dtype=self._rdtype)
+            if not target.shape[0] == 3:
                 raise ValueError("`target` must be a three-element vector)")
 
         # Compute angles relative to LCS
         x = target - self.position
         x, _ = normalize(x)
         theta, phi = theta_phi_from_unit_vec(x)
-        alpha = phi # Rotation around z-axis
-        beta = theta-PI/2 # Rotation around y-axis
-        gamma = 0.0 # Rotation around x-axis
+        alpha = phi  # Rotation around z-axis
+        beta = theta - PI / 2  # Rotation around y-axis
+        gamma = 0.0  # Rotation around x-axis
         self.orientation = (alpha, beta, gamma)
 
     @property
@@ -162,11 +166,11 @@ class RadioDevice(Object):
 
     @color.setter
     def color(self, new_color):
-        new_color = tf.cast(new_color, dtype=self._rdtype)
-        if not (tf.rank(new_color) == 1 and new_color.shape[0] == 3):
+        new_color = np.asarray(new_color, dtype=self._rdtype)
+        if not (new_color.ndim == 1 and new_color.shape[0] == 3):
             msg = "Color must be shaped as [r,g,b] (rank=1 and shape=[3])"
             raise ValueError(msg)
-        if tf.reduce_any(new_color < 0.) or tf.reduce_any(new_color > 1.):
+        if np.any(new_color < 0.0) or np.any(new_color > 1.0):
             msg = "Color components must be in the range (0,1)"
             raise ValueError(msg)
         self._color = new_color
