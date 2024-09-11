@@ -16,7 +16,7 @@ from .utils import (
     dot,
     theta_phi_from_unit_vec,
     cross,
-    mi_to_tf_tensor,
+    mi_to_np_ndarray,
     mitsuba_rectangle_to_world,
 )
 
@@ -172,7 +172,7 @@ class SolverBase:
             vertex_coords = s.vertex_position(face_indices)
             # Move to TensorFlow
             # [n_prims*3, 3]
-            vertex_coords = mi_to_tf_tensor(vertex_coords, self._rdtype)
+            vertex_coords = mi_to_np_ndarray(vertex_coords, self._rdtype)
             # Unflatten
             # [n_prims, vertices per triangle : 3, 3]
             vertex_coords = np.reshape(vertex_coords, [s.face_count(), 3, 3])
@@ -198,7 +198,7 @@ class SolverBase:
             mi_n = dr.normalize(dr.cross(v1 - v0, v2 - v0))
             # Move to TensorFlow
             # [n_prims, 3]
-            n = mi_to_tf_tensor(mi_n, self._rdtype)
+            n = mi_to_np_ndarray(mi_n, self._rdtype)
             # Update the 'normals' tensor
             normals[sl] = n
 
@@ -499,11 +499,11 @@ class SolverBase:
         # With the scene
         # [batch_size]
         mi_val = self._mi_scene.ray_test(mi_ray)
-        val = mi_to_tf_tensor(mi_val, np.bool_)
+        val = mi_to_np_ndarray(mi_val, np.bool_)
         # With additional blockers
         if additional_blockers:
             mi_val = additional_blockers.ray_test(mi_ray)
-            val = np.logical_or(val, mi_to_tf_tensor(mi_val, np.bool_))
+            val = np.logical_or(val, mi_to_np_ndarray(mi_val, np.bool_))
         return val
 
     def _extract_wedges(self):

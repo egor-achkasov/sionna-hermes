@@ -20,7 +20,7 @@ from .utils import (
     theta_phi_from_unit_vec,
     normalize,
     rotation_matrix,
-    mi_to_tf_tensor,
+    mi_to_np_ndarray,
     compute_field_unit_vectors,
     reflection_coefficient,
     component_transform,
@@ -2751,21 +2751,21 @@ class SolverCoverageMap(SolverBase):
         ps = np.tile(ps, [num_tx, 1])
         ps_dr = self._mi_point2_t(ps)
         k_tx_dr = mi.warp.square_to_uniform_sphere(ps_dr)
-        k_tx = mi_to_tf_tensor(k_tx_dr, np.float_)
+        k_tx = mi_to_np_ndarray(k_tx_dr, np.float_)
         # Origin placed on the given transmitters
         # (num_samples,)
         samples_tx_indices_dr = dr.linspace(
             self._mi_scalar_t, 0, num_tx - 1e-7, num=num_samples, endpoint=False
         )
         samples_tx_indices_dr = mi.Int32(samples_tx_indices_dr)
-        samples_tx_indices = mi_to_tf_tensor(samples_tx_indices_dr, np.int_)
+        samples_tx_indices = mi_to_np_ndarray(samples_tx_indices_dr, np.int_)
         # (num_samples, 3)
         rays_origin_dr = dr.gather(
             self._mi_vec_t,
             self._mi_tensor_t(sources_positions).array,
             samples_tx_indices_dr,
         )
-        rays_origin = mi_to_tf_tensor(rays_origin_dr, np.float_)
+        rays_origin = mi_to_np_ndarray(rays_origin_dr, np.float_)
         # Rays
         ray = mi.Ray3f(o=rays_origin_dr, d=k_tx_dr)
 
@@ -2808,7 +2808,7 @@ class SolverCoverageMap(SolverBase):
             ris_ind_offset = 0
         # Because Mitsuba does not necessarily assign IDs starting from 1,
         # we need to account for this offset
-        ris_mi_ids = mi_to_tf_tensor(
+        ris_mi_ids = mi_to_np_ndarray(
             dr.reinterpret_array_v(mi.UInt32, ris_scene.shapes_dr()), np.int_
         )
         ris_ind_offset -= np.min(ris_mi_ids).numpy() - 1
@@ -2845,9 +2845,9 @@ class SolverCoverageMap(SolverBase):
             # (num_samples,)
             active_dr = hit_scene_dr | hit_ris_dr
             # (num_samples,)
-            hit_scene = mi_to_tf_tensor(hit_scene_dr, np.bool_)
-            hit_ris = mi_to_tf_tensor(hit_ris_dr, np.bool_)
-            active = mi_to_tf_tensor(active_dr, np.bool_)
+            hit_scene = mi_to_np_ndarray(hit_scene_dr, np.bool_)
+            hit_ris = mi_to_np_ndarray(hit_ris_dr, np.bool_)
+            active = mi_to_np_ndarray(active_dr, np.bool_)
 
             # Hit the measurement plane?
             # An intersection with the coverage map is only valid if it was
@@ -2855,7 +2855,7 @@ class SolverCoverageMap(SolverBase):
             # (num_samples,)
             hit_mp_dr = si_mp.is_valid() & (si_mp.t < si_scene.t) & (si_mp.t < si_ris_t)
             # (num_samples,)
-            hit_mp = mi_to_tf_tensor(hit_mp_dr, np.bool_)
+            hit_mp = mi_to_np_ndarray(hit_mp_dr, np.bool_)
 
             # Discard LoS if requested
             # (num_samples,)
@@ -2870,7 +2870,7 @@ class SolverCoverageMap(SolverBase):
             # or are active
             if depth == 0:
                 init_ray_dr = active_dr | si_mp.is_valid()
-                init_ray = mi_to_tf_tensor(init_ray_dr, np.bool_)
+                init_ray = mi_to_np_ndarray(init_ray_dr, np.bool_)
                 e_field, field_es, field_ep = self._init_e_field(
                     init_ray, samples_tx_indices, k_tx, tx_rot_mat
                 )
@@ -2881,7 +2881,7 @@ class SolverCoverageMap(SolverBase):
             # Intersection point with the measurement plane
             # (num_samples, 3)
             mp_hit_point = ray.o + si_mp.t * ray.d
-            mp_hit_point = mi_to_tf_tensor(mp_hit_point, np.float_)
+            mp_hit_point = mi_to_np_ndarray(mp_hit_point, np.float_)
 
             cm = self._update_coverage_map(
                 cm_center,
@@ -2944,7 +2944,7 @@ class SolverCoverageMap(SolverBase):
             # (num_samples,)
             primitives = dr.select(hit_scene_dr, scene_primitives, ris_ind)
             primitives = dr.select(active_dr, primitives, -1)
-            primitives = mi_to_tf_tensor(primitives, np.int_)
+            primitives = mi_to_np_ndarray(primitives, np.int_)
 
             # If diffraction is enabled, stores the primitives in LoS
             # for sampling their wedges. These are needed to compute the
@@ -2952,7 +2952,7 @@ class SolverCoverageMap(SolverBase):
             if diffraction and (depth == 0):
                 # (num_samples,)
                 los_primitives = dr.select(hit_scene_dr, scene_primitives, -1)
-                los_primitives = mi_to_tf_tensor(los_primitives, np.int_)
+                los_primitives = mi_to_np_ndarray(los_primitives, np.int_)
 
             # At this point, max_depth > 0 and there are still active rays.
             # However, we can stop if neither reflection, scattering or
@@ -2971,7 +2971,7 @@ class SolverCoverageMap(SolverBase):
             int_point = dr.select(
                 hit_scene_dr, ray.o + si_scene.t * ray.d, ray.o + si_ris_t * ray.d
             )
-            int_point = mi_to_tf_tensor(int_point, np.float_)
+            int_point = mi_to_np_ndarray(int_point, np.float_)
 
             # Sample scattering/reflection phenomena.
             # reflect_ind : (num_reflected_samples,)
@@ -3720,7 +3720,7 @@ class SolverCoverageMap(SolverBase):
         # the measurement plane, and discard rays that are invalid for all TXs
 
         # (num_tx x num_samples)
-        maxt = mi_to_tf_tensor(si_mp.t, dtype=np.float_)
+        maxt = mi_to_np_ndarray(si_mp.t, dtype=np.float_)
         # (num_tx x num_samples)
         invalid = np.logical_or(np.isinf(maxt), obstructed)
         # (num_tx, num_samples)

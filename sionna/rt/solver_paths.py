@@ -23,7 +23,7 @@ from .utils import (
     normalize,
     moller_trumbore,
     component_transform,
-    mi_to_tf_tensor,
+    mi_to_np_ndarray,
     compute_field_unit_vectors,
     reflection_coefficient,
     fibonacci_lattice,
@@ -1399,7 +1399,7 @@ class SolverPaths(SolverBase):
             # Stack all found interactions along the depth dimension
             # [max_depth, num_samples]
             candidates = np.stack(
-                [mi_to_tf_tensor(r, np.int_) for r in candidates], axis=0
+                [mi_to_np_ndarray(r, np.int_) for r in candidates], axis=0
             )
 
         if reflection:
@@ -1423,7 +1423,7 @@ class SolverPaths(SolverBase):
 
         if scattering:
             # [max_depth, num_samples, 3]
-            hit_points = np.stack([mi_to_tf_tensor(r, np.float_) for r in hit_points])
+            hit_points = np.stack([mi_to_np_ndarray(r, np.float_) for r in hit_points])
             # [max_depth, num_sources, samples_per_source, 3]
             hit_points = np.reshape(
                 hit_points, [max_depth, num_sources, samples_per_source, 3]

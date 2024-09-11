@@ -53,6 +53,6 @@ from .utils import rotation_matrix, rotate, theta_phi_from_unit_vec,\
                    r_hat, theta_hat, phi_hat, cross, dot, outer,\
                    normalize, moller_trumbore, component_transform,\
                    reflection_coefficient, compute_field_unit_vectors,\
-                   gen_orthogonal_vector, mi_to_tf_tensor, fibonacci_lattice,\
+                   gen_orthogonal_vector, mi_to_np_ndarray, fibonacci_lattice,\
                    cot, sign, rot_mat_from_unit_vecs,\
                        sample_points_on_hemisphere
