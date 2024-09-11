@@ -5,7 +5,6 @@
 """
 Implements classes and methods related to antenna arrays
 """
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.markers import MarkerStyle
@@ -13,7 +12,8 @@ from .antenna import Antenna
 from . import scene
 from .utils import rotate
 
-class AntennaArray():
+
+class AntennaArray:
     # pylint: disable=line-too-long
     r"""
     Class implementing an antenna array
@@ -40,15 +40,16 @@ class AntennaArray():
         adding the position of the :class:`~sionna.rt.Transmitter`
         or :class:`~sionna.rt.Receiver` using it.
 
-    dtype : tf.complex64 or tf.complex128
+    dtype : np.complex_ or np.complex_
         Data type used for all computations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
-    def __init__(self, antenna, positions, dtype=tf.complex64):
+
+    def __init__(self, antenna, positions, dtype=np.complex_):
         super().__init__()
 
-        if dtype not in (tf.complex64, tf.complex128):
-            raise ValueError("`dtype` must be tf.complex64 or tf.complex128`")
+        if dtype not in (np.complex_, np.complex_):
+            raise ValueError("`dtype` must be np.complex_ or np.complex_`")
         self._rdtype = dtype.real_dtype
         self.antenna = antenna
         self.positions = positions
@@ -69,21 +70,21 @@ class AntennaArray():
     @property
     def positions(self):
         """
-        [array_size, 3], `tf.float` : Get/set  array of relative positions
+        [array_size, 3], `np.float_` : Get/set  array of relative positions
         :math:`(x,y,z)` [m] of each antenna (dual-polarized antennas are
         counted as a single antenna and share the same position).
         """
         return self._positions
 
     @positions.setter
-    def positions(self, positions):
-        if isinstance(positions, tf.Variable):
+    def positions(self, positions: np.ndarray):
+        if isinstance(positions, np.ndarray):
             if positions.dtype != self._rdtype:
                 raise TypeError(f"`positions` must have dtype={self._rdtype}")
             else:
                 self._positions = positions
         else:
-            self._positions = tf.cast(positions, self._rdtype)
+            self._positions = np.asarray(positions, self._rdtype)
 
     @property
     def num_ant(self):
@@ -92,7 +93,7 @@ class AntennaArray():
             Dual-polarized antennas are counted as two linearly polarized
             antennas.
         """
-        return self._positions.shape[0]*len(self._antenna.patterns)
+        return self._positions.shape[0] * len(self._antenna.patterns)
 
     @property
     def array_size(self):
@@ -108,7 +109,7 @@ class AntennaArray():
 
         Input
         ------
-        orientation : [3], tf.float
+        orientation : [3], np.float_
             Orientation :math:`(\alpha, \beta, \gamma)` [rad] specified
             through three angles corresponding to a 3D rotation
             as defined in :eq:`rotation`.
@@ -121,6 +122,7 @@ class AntennaArray():
         # [array_size, 3]
         rot_p = rotate(self.positions, orientation)
         return rot_p
+
 
 class PlanarArray(AntennaArray):
     # pylint: disable=line-too-long
@@ -168,9 +170,9 @@ class PlanarArray(AntennaArray):
         respectively.
         Defaults to `2`.
 
-    dtype : tf.complex64 or tf.complex128
+    dtype : np.complex_ or np.complex_
         Datatype used for all computations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Example
     -------
@@ -183,38 +185,37 @@ class PlanarArray(AntennaArray):
         :align: center
         :scale: 100%
     """
-    def __init__(self,
-                 num_rows,
-                 num_cols,
-                 vertical_spacing,
-                 horizontal_spacing,
-                 pattern,
-                 polarization=None,
-                 polarization_model=2,
-                 dtype=tf.complex64):
 
-        if dtype not in (tf.complex64, tf.complex128):
-            raise ValueError("`dtype` must be tf.complex64 or tf.complex128`")
+    def __init__(
+        self,
+        num_rows,
+        num_cols,
+        vertical_spacing,
+        horizontal_spacing,
+        pattern,
+        polarization=None,
+        polarization_model=2,
+        dtype=np.complex_,
+    ):
+
+        if dtype not in (np.complex_, np.complex_):
+            raise ValueError("`dtype` must be np.complex_ or np.complex_`")
 
         # Create list of antennas
-        array_size = num_rows*num_cols
+        array_size = num_rows * num_cols
         antenna = Antenna(pattern, polarization, polarization_model, dtype)
 
         # Compute antenna positions
         d_v = vertical_spacing
         d_h = horizontal_spacing
-        positions =  np.zeros([array_size, 3])
+        positions = np.zeros([array_size, 3])
 
         for i in range(num_rows):
             for j in range(num_cols):
-                positions[i + j*num_rows] = [0,
-                                             j*d_h,
-                                             -i*d_v]
+                positions[i + j * num_rows] = [0, j * d_h, -i * d_v]
 
         # Center the panel around the origin
-        offset = [0,
-                  -(num_cols-1)*d_h/2,
-                  (num_rows-1)*d_v/2]
+        offset = [0, -(num_cols - 1) * d_h / 2, (num_rows - 1) * d_v / 2]
         positions += offset
         super().__init__(antenna, positions, dtype)
         self._positions_set = False
@@ -222,7 +223,7 @@ class PlanarArray(AntennaArray):
     @property
     def positions(self):
         """
-        [array_size, 3], `tf.float` : Get/set  array of relative positions
+        [array_size, 3], `np.float_` : Get/set  array of relative positions
         :math:`(x,y,z)` [m] of each antenna (dual-polarized antennas are
         counted as a single antenna and share the same position).
         """
@@ -231,21 +232,21 @@ class PlanarArray(AntennaArray):
             if hasattr(scene.Scene(), "wavelength"):
                 wavelength = scene.Scene().wavelength
             else:
-                wavelength = tf.cast(1, self._rdtype)
-            return self._positions*wavelength
+                wavelength = float(1)
+            return self._positions * wavelength
         else:
             """Return provided positions"""
             return self._positions
 
     @positions.setter
-    def positions(self, positions):
-        if isinstance(positions, tf.Variable):
+    def positions(self, positions: np.ndarray):
+        if isinstance(positions, np.ndarray):
             if positions.dtype != self._rdtype:
                 raise TypeError(f"`positions` must have dtype={self._rdtype}")
             else:
                 self._positions = positions
         else:
-            self._positions = tf.cast(positions, self._rdtype)
+            self._positions = np.asarray(positions, self._rdtype)
         self._positions_set = True
 
     def show(self):
@@ -262,12 +263,18 @@ class PlanarArray(AntennaArray):
             Figure depicting the antenna array
         """
         fig = plt.figure()
-        plt.plot(self.positions[:,1], self.positions[:,2],
-                 marker=MarkerStyle("+").get_marker(), markeredgecolor='red',
-                 markerfacecolor='red', markersize="10", linestyle="None",
-                 markeredgewidth="1")
+        plt.plot(
+            self.positions[:, 1],
+            self.positions[:, 2],
+            marker=MarkerStyle("+").get_marker(),
+            markeredgecolor="red",
+            markerfacecolor="red",
+            markersize="10",
+            linestyle="None",
+            markeredgewidth="1",
+        )
         for i, p in enumerate(self.positions):
-            fig.axes[0].annotate(i+1, (p[1], p[2]))
+            fig.axes[0].annotate(i + 1, (p[1], p[2]))
         plt.xlabel("y (m)")
         plt.ylabel("z (m)")
         plt.title("Planar Array Layout")
