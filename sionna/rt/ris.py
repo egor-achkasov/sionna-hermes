@@ -8,16 +8,16 @@ Classes and functions relating to reconfigurable intelligent surfaces
 
 from abc import ABC
 from abc import abstractmethod
-import tensorflow as tf
+import numpy as np
 import matplotlib.pyplot as plt
 
 from .radio_device import RadioDevice
 from .scene_object import SceneObject
 from . import scene
-from .utils import rotate, normalize, outer,\
-                   expand_to_rank
+from .utils import rotate, normalize, outer, expand_to_rank
 
-class CellGrid():
+
+class CellGrid:
     # pylint: disable=line-too-long
     r"""
     Class defining a cell grid that determines the physical structure of a RIS
@@ -40,16 +40,14 @@ class CellGrid():
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     """
-    def __init__(self,
-                 num_rows,
-                 num_cols,
-                 dtype=tf.complex64):
 
-        if dtype not in (tf.complex64, tf.complex128):
-            raise ValueError("`dtype` must be tf.complex64 or tf.complex128`")
+    def __init__(self, num_rows, num_cols, dtype=np.complex_):
+
+        if dtype not in (np.complex_, np.complex_):
+            raise ValueError("`dtype` must be np.complex_ or np.complex_`")
         self._dtype = dtype
         self._rdtype = dtype.real_dtype
 
@@ -58,16 +56,14 @@ class CellGrid():
         self._num_rows = int(num_rows)
         self._num_cols = int(num_cols)
 
-        self._cell_y_positions = tf.range(self.num_cols, dtype=self._rdtype)
-        self._cell_y_positions -= tf.cast((self.num_cols-1.)/2., self._rdtype)
+        self._cell_y_positions = np.arange(self.num_cols, dtype=self._rdtype)
+        self._cell_y_positions -= (self.num_cols - 1.0) / 2.0
 
-        self._cell_z_positions = tf.range(self.num_rows-1, -1, -1,
-                                          dtype=self._rdtype)
-        self._cell_z_positions -= tf.cast((self.num_rows-1.)/2., self._rdtype)
+        self._cell_z_positions = np.arange(self.num_rows - 1, -1, -1, dtype=self._rdtype)
+        self._cell_z_positions -= (self.num_rows - 1.0) / 2.0
 
-        z, y = tf.meshgrid(self.cell_z_positions, self.cell_y_positions)
-        self._cell_positions = tf.stack([tf.reshape(y, [-1]),
-                                         tf.reshape(z, [-1])], -1)
+        z, y = np.meshgrid(self.cell_z_positions, self.cell_y_positions)
+        self._cell_positions = np.stack([np.reshape(y, [-1]), np.reshape(z, [-1])], -1)
 
     @property
     def num_rows(self):
@@ -93,7 +89,7 @@ class CellGrid():
     @property
     def cell_positions(self):
         r"""
-        [num_cells, 2], tf.float : Cell positions ordered from
+        [num_cells, 2], np.float_ : Cell positions ordered from
             top-to-bottom left-to-right
         """
         return self._cell_positions
@@ -101,7 +97,7 @@ class CellGrid():
     @property
     def cell_y_positions(self):
         r"""
-        [num_cols], tf.float : y-coordinates of cells ordered
+        [num_cols], np.float_ : y-coordinates of cells ordered
             from left-to-right
         """
         return self._cell_y_positions
@@ -109,10 +105,11 @@ class CellGrid():
     @property
     def cell_z_positions(self):
         r"""
-        [num_rows], tf.float : z-coordinates of cells ordered
+        [num_rows], np.float_ : z-coordinates of cells ordered
             from top-to-bottom
         """
         return self._cell_z_positions
+
 
 class Profile(ABC):
     # pylint: disable=line-too-long
@@ -125,11 +122,11 @@ class Profile(ABC):
     ----------
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -147,20 +144,19 @@ class Profile(ABC):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
-    def __init__(self, dtype=tf.complex64):
-        if dtype not in (tf.complex64, tf.complex128):
-            raise ValueError("`dtype` must be tf.complex64 or tf.complex128`")
+
+    def __init__(self, dtype=np.complex_):
         self._dtype = dtype
         self._rdtype = dtype.real_dtype
 
@@ -179,7 +175,7 @@ class Profile(ABC):
 
         Input
         -----
-        points : tf.float, [num_samples, 2]
+        points : np.float_, [num_samples, 2]
             Tensor of 2D coordinates defining the points on the RIS at which
             the profile should be evaluated.
             Defaults to `None`. In this case, the values for all unit cells
@@ -197,18 +193,19 @@ class Profile(ABC):
 
         Output
         ------
-        values : [num_modes, num_samples] or [num_samples], tf.float
+        values : [num_modes, num_samples] or [num_samples], np.float_
             Interpolated profile values at the sample positions
 
-        grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+        grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
             Gradients of the interpolated profile values
             at the sample positions. Only returned if `return_grads` is `True`.
 
-        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
             Hessians of the interpolated profile values
             at the sample positions. Only returned if `return_grads` is `True`.
         """
         pass
+
 
 class AmplitudeProfile(Profile):
     # pylint: disable=line-too-long
@@ -221,11 +218,11 @@ class AmplitudeProfile(Profile):
     ----------
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -243,24 +240,26 @@ class AmplitudeProfile(Profile):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
+
     @property
     @abstractmethod
     def mode_powers(self):
         r"""
-        [num_modes], tf.float: Relative power of reradiation modes
+        [num_modes], np.float_: Relative power of reradiation modes
         """
         pass
+
 
 class PhaseProfile(Profile):
     # pylint: disable=line-too-long
@@ -273,11 +272,11 @@ class PhaseProfile(Profile):
     ----------
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -295,18 +294,19 @@ class PhaseProfile(Profile):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
     pass
+
 
 class DiscreteProfile(Profile):
     # pylint: disable=line-too-long
@@ -324,7 +324,7 @@ class DiscreteProfile(Profile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : tf.float or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
         Values of the discrete profile for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
@@ -339,11 +339,11 @@ class DiscreteProfile(Profile):
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -361,27 +361,25 @@ class DiscreteProfile(Profile):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
-    def __init__(self,
-                 cell_grid,
-                 num_modes=1,
-                 values=None,
-                 interpolator=None,
-                 dtype=tf.complex64):
+
+    def __init__(
+        self, cell_grid, num_modes=1, values=None, interpolator=None, dtype=np.complex_
+    ):
 
         super().__init__(dtype=dtype)
         self._cell_grid = cell_grid
-        self._num_modes = tf.cast(num_modes, tf.int32)
+        self._num_modes = num_modes
         if values is None:
             self._values = None
         else:
@@ -397,13 +395,12 @@ class DiscreteProfile(Profile):
         tf.TensorShape : Shape of the tensor holding the values of
             the discrete profile
         """
-        return tf.TensorShape([self.num_modes,
-                               self.cell_grid.num_rows,
-                               self.cell_grid.num_cols])
+        return (self.num_modes, self.cell_grid.num_rows, self.cell_grid.num_cols)
+
     @property
     def values(self):
         r"""
-        [shape], tf.float : Set/get the discrete values of the profile for each
+        [shape], np.float_ : Set/get the discrete values of the profile for each
             reradiation mode
         """
         return self._values
@@ -412,14 +409,14 @@ class DiscreteProfile(Profile):
     def values(self, v):
         if not v.shape == self.shape:
             raise ValueError(f"`values` must have shape {self.shape}")
-        if isinstance(v, tf.Variable):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`values` must have dtype={self._rdtype}"
                 raise TypeError(msg)
             else:
                 self._values = v
         else:
-            self._values = tf.cast(v, dtype=self._rdtype)
+            self._values = np.ndarray(v, dtype=self._rdtype)
 
     @property
     def num_modes(self):
@@ -439,15 +436,15 @@ class DiscreteProfile(Profile):
     @property
     def spacing(self):
         r"""
-        tf.float: Element spacing [m] corresponding to
+        np.float_: Element spacing [m] corresponding to
             half a wavelength
         """
         if hasattr(scene.Scene(), "wavelength"):
             wavelength = scene.Scene().wavelength
-            return wavelength/tf.cast(2, self._rdtype)
+            return wavelength / 2.
         else:
             # Scene is not initialized
-            return tf.cast(0.5, self._rdtype) 
+            return 0.5
 
     def show(self, mode=0):
         r"""Visualizes the profile as a 3D plot
@@ -464,10 +461,12 @@ class DiscreteProfile(Profile):
             3D plot of the profile
         """
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        y, z = tf.meshgrid(self.cell_grid.cell_y_positions*self.spacing,
-                           self.cell_grid.cell_z_positions*self.spacing)
-        ax.plot_surface(y, z, self.values[mode], cmap='viridis')
+        ax = fig.add_subplot(111, projection="3d")
+        y, z = np.meshgrid(
+            self.cell_grid.cell_y_positions * self.spacing,
+            self.cell_grid.cell_z_positions * self.spacing,
+        )
+        ax.plot_surface(y, z, self.values[mode], cmap="viridis")
         ax.set_xlabel("y")
         ax.set_ylabel("z")
         if isinstance(self, PhaseProfile):
@@ -482,7 +481,7 @@ class DiscreteProfile(Profile):
 
         Input
         -----
-        points : tf.float, [num_samples, 2]
+        points : np.float_, [num_samples, 2]
             Tensor of 2D coordinates defining the points on the RIS at which
             the profile should be evaluated.
             Defaults to `None`. In this case, the values for all unit cells
@@ -500,27 +499,28 @@ class DiscreteProfile(Profile):
 
         Output
         ------
-        values : [num_modes, num_samples] or [num_samples], tf.float
+        values : [num_modes, num_samples] or [num_samples], np.float_
             Interpolated profile values at the sample positions
 
-        grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+        grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
             Gradients of the interpolated profile values
             at the sample positions. Only returned if `return_grads` is `True`.
 
-        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
             Hessians of the interpolated profile values
             at the sample positions. Only returned if `return_grads` is `True`.
         """
         if points is None:
             if mode is not None:
-                values = tf.transpose(self.values[mode])
-                values = tf.reshape(values, [-1])
+                values = np.transpose(self.values[mode])
+                values = np.reshape(values, [-1])
             else:
-                values = tf.transpose(self.values, perm=[0,2,1])
-                values = tf.reshape(values, [self.num_modes, -1])
+                values = np.transpose(self.values, perm=[0, 2, 1])
+                values = np.reshape(values, [self.num_modes, -1])
             return values
         else:
             return self._interpolator(points, mode, return_grads)
+
 
 class ProfileInterpolator(ABC):
     r"""
@@ -537,7 +537,7 @@ class ProfileInterpolator(ABC):
 
     Input
     -----
-    points : [num_samples, 2], tf.float
+    points : [num_samples, 2], np.float_
         Positions at which to interpolate the profile
 
     mode : int | `None`
@@ -551,17 +551,18 @@ class ProfileInterpolator(ABC):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples,3,3], tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples,3,3], np.float_
         Hessians of the interpolated profile values
         at the sample positions
     """
+
     def __init__(self, discrete_profile):
         self._discrete_profile = discrete_profile
         self._dtype = discrete_profile._dtype
@@ -570,31 +571,31 @@ class ProfileInterpolator(ABC):
     @property
     def spacing(self):
         r"""
-        tf.float: Element spacing [m] corresponding to
+        np.float_: Element spacing [m] corresponding to
             half a wavelength
         """
         if hasattr(scene.Scene(), "wavelength"):
             wavelength = scene.Scene().wavelength
-            return wavelength/tf.cast(2,  self._rdtype)
+            return wavelength / 2.
         else:
             # Scene is not initialized
-            return tf.cast(0.5, self._rdtype)
+            return 0.5
 
     @property
     def cell_y_positions(self):
         r"""
-        [num_cols], tf.float : y-coordinates of cells ordered
+        [num_cols], np.float_ : y-coordinates of cells ordered
             from left-to-right
         """
-        return self._discrete_profile.cell_grid.cell_y_positions*self.spacing
+        return self._discrete_profile.cell_grid.cell_y_positions * self.spacing
 
     @property
     def cell_z_positions(self):
         r"""
-        [num_rows], tf.float : z-coordinates of cells ordered
+        [num_rows], np.float_ : z-coordinates of cells ordered
             from top-to-bottom
         """
-        return self._discrete_profile.cell_grid.cell_z_positions*self.spacing
+        return self._discrete_profile.cell_grid.cell_z_positions * self.spacing
 
     @property
     def num_rows(self):
@@ -613,7 +614,7 @@ class ProfileInterpolator(ABC):
     @property
     def values(self):
         r"""
-        [shape], tf.float : Discrete values of the profile for each
+        [shape], np.float_ : Discrete values of the profile for each
             reradiation mode and unit cell
         """
         return self._discrete_profile.values
@@ -627,7 +628,7 @@ class ProfileInterpolator(ABC):
 
         Input
         -----
-        points : [num_samples, 2], tf.float
+        points : [num_samples, 2], np.float_
             Positions at which to interpolate the profile
 
         mode : int | `None`
@@ -641,18 +642,19 @@ class ProfileInterpolator(ABC):
 
         Output
         ------
-        values : [num_modes, num_samples] or [num_samples], tf.float
+        values : [num_modes, num_samples] or [num_samples], np.float_
             Interpolated profile values at the sample positions
 
-        grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+        grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
             Gradients of the interpolated profile values
             at the sample positions
 
-        hessians : [num_modes, num_samples, 3, 3] or [num_samples,3,3], tf.float
+        hessians : [num_modes, num_samples, 3, 3] or [num_samples,3,3], np.float_
             Hessians of the interpolated profile values
             at the sample positions
         """
         pass
+
 
 class LagrangeProfileInterpolator(ProfileInterpolator):
     # pylint: disable=line-too-long
@@ -705,7 +707,7 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
     Input
     -----
-    points : [num_samples, 2], tf.float
+    points : [num_samples, 2], np.float_
         Positions at which to interpolate the profile
 
     mode : int | `None`
@@ -719,22 +721,20 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions
     """
 
     @staticmethod
-    def lagrange_polynomials(x,
-                             x_i,
-                             return_derivatives=True):
+    def lagrange_polynomials(x, x_i, return_derivatives=True):
         # pylint: disable=line-too-long
         r"""
         Compute the 2nd-order Lagrange polynomials
@@ -760,10 +760,10 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
         Input
         -----
-        x : [batch_size], tf.float
+        x : [batch_size], np.float_
             Sample positions
 
-        x_i : [batch_size, 3], tf.float
+        x_i : [batch_size, 3], np.float_
             Support positions for every sample position
 
         return_derivatives : bool
@@ -773,48 +773,46 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
         Output
         ------
-        l_i : [batch_size, 3], tf.float
+        l_i : [batch_size, 3], np.float_
             Lagrange polynomials for each sample position
 
-        deriv_1st : [batch_size, 3], tf.float
+        deriv_1st : [batch_size, 3], np.float_
             First-order derivatives for each sample position.
             Only returned if `return_derivatives` is `True`.
 
-        deriv_2nd : [batch_size, 3], tf.float
+        deriv_2nd : [batch_size, 3], np.float_
             Second-order derivatives for each sample position.
             Only returned if `return_derivatives` is `True`.
         """
 
         # Compute products of differences of the sample and support points
-        sample_diff = tf.expand_dims(x, 1) - x_i
-        sample_prod_0 = sample_diff[:,1]*sample_diff[:,2]
-        sample_prod_1 = sample_diff[:,0]*sample_diff[:,2]
-        sample_prod_2 = sample_diff[:,0]*sample_diff[:,1]
-        sample_prods = tf.stack([sample_prod_0, sample_prod_1, sample_prod_2],
-                                -1)
+        sample_diff = np.expand_dims(x, 1) - x_i
+        sample_prod_0 = sample_diff[:, 1] * sample_diff[:, 2]
+        sample_prod_1 = sample_diff[:, 0] * sample_diff[:, 2]
+        sample_prod_2 = sample_diff[:, 0] * sample_diff[:, 1]
+        sample_prods = np.stack([sample_prod_0, sample_prod_1, sample_prod_2], -1)
 
         # Compute products of differences of support points
-        support_diffs = tf.expand_dims(x_i, -1) - tf.expand_dims(x_i, -2)
-        support_diffs = tf.where(support_diffs==0, 1., support_diffs)
-        support_prods = tf.reduce_prod(support_diffs, axis=-1)
+        support_diffs = np.expand_dims(x_i, -1) - np.expand_dims(x_i, -2)
+        support_diffs = np.where(support_diffs == 0, 1.0, support_diffs)
+        support_prods = np.prod(support_diffs, axis=-1)
 
         # Compute Lagrange polynomials
-        lagrange = sample_prods/support_prods
+        lagrange = sample_prods / support_prods
 
         if not return_derivatives:
             return lagrange
         else:
             # Compute sums of differences
-            sample_sum_0 = sample_diff[:,1] + sample_diff[:,2]
-            sample_sum_1 = sample_diff[:,0] + sample_diff[:,2]
-            sample_sum_2 = sample_diff[:,0] + sample_diff[:,1]
-            sample_sums = tf.stack([sample_sum_0, sample_sum_1, sample_sum_2],
-                                    -1)
+            sample_sum_0 = sample_diff[:, 1] + sample_diff[:, 2]
+            sample_sum_1 = sample_diff[:, 0] + sample_diff[:, 2]
+            sample_sum_2 = sample_diff[:, 0] + sample_diff[:, 1]
+            sample_sums = np.stack([sample_sum_0, sample_sum_1, sample_sum_2], -1)
             # Compute first-order derivatives
-            deriv_1st = sample_sums/support_prods
+            deriv_1st = sample_sums / support_prods
 
             # Compute second-order derivatives
-            deriv_2nd = tf.cast(2, support_prods.dtype)/support_prods
+            deriv_2nd = 2. / support_prods
 
             return lagrange, deriv_1st, deriv_2nd
 
@@ -858,7 +856,7 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
         Input
         -----
-        points : [num_samples, 2], tf.float
+        points : [num_samples, 2], np.float_
             Positions at which to interpolate the profile
 
         mode : int | `None`
@@ -872,117 +870,127 @@ class LagrangeProfileInterpolator(ProfileInterpolator):
 
         Output
         ------
-        values : [num_modes, num_samples] or [num_samples], tf.float
+        values : [num_modes, num_samples] or [num_samples], np.float_
             Interpolated profile values at the sample positions
 
-        grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+        grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
             Gradients of the interpolated profile values
             at the sample positions
 
-        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
             Hessians of the interpolated profile values
             at the sample positions
         """
-        num_samples = tf.shape(points)[0]
+        num_samples = np.shape(points)[0]
         # Compute absolute distances in y/z directions
-        y_dist = tf.abs(tf.expand_dims(points[:,0], axis=1)
-                        - tf.expand_dims(self.cell_y_positions, axis=0))
-        z_dist = tf.abs(tf.expand_dims(points[:,1], axis=1)
-                        - tf.expand_dims(self.cell_z_positions, axis=0))
+        y_dist = np.abs(
+            np.expand_dims(points[:, 0], axis=1)
+            - np.expand_dims(self.cell_y_positions, axis=0)
+        )
+        z_dist = np.abs(
+            np.expand_dims(points[:, 1], axis=1)
+            - np.expand_dims(self.cell_z_positions, axis=0)
+        )
 
         # Compute indices of three closest support points
-        y_ind = tf.sort(tf.math.top_k(-y_dist, k=3, sorted=False)[1], -1)
-        z_ind = tf.sort(tf.math.top_k(-z_dist, k=3, sorted=False)[1], -1)
+        y_ind = np.sort(np.argmin(y_dist, axis=-1)[:, :3], -1)
+        z_ind = np.sort(np.argmin(z_dist, axis=-1)[:, :3], -1)
 
         # Get support points in y and z dimensions
-        y_i = tf.gather(self.cell_y_positions, y_ind, axis=0, batch_dims=1)
-        z_i = tf.gather(self.cell_z_positions, z_ind, axis=0, batch_dims=1)
+        y_i = np.take_along_axis(self.cell_y_positions, y_ind, axis=0)
+        z_i = np.take_along_axis(self.cell_z_positions, z_ind, axis=0)
 
         # Compute indices of all support points
-        support_ind = tf.reshape(tf.expand_dims(z_ind, 1)
-                                 + tf.expand_dims(y_ind, 2)*self.num_rows,
-                                 [num_samples, -1])
-
+        support_ind = np.reshape(
+            np.expand_dims(z_ind, 1) + np.expand_dims(y_ind, 2) * self.num_rows,
+            [num_samples, -1],
+        )
 
         # Compute support values for all modes
-        vals = tf.transpose(self.values, perm=[2, 1, 0])
+        vals = np.transpose(self.values, perm=[2, 1, 0])
         if mode is not None:
             # Filter relevant mode
-            vals = tf.expand_dims(vals[...,mode], -1)
-        num_modes = tf.shape(vals)[-1]
-        vals = tf.reshape(vals, [-1, num_modes])
-        support_values = tf.gather(vals, support_ind, axis=0, batch_dims=1)
-        support_values = tf.transpose(support_values, perm=[2,0,1])
+            vals = np.expand_dims(vals[..., mode], -1)
+        num_modes = np.shape(vals)[-1]
+        vals = np.reshape(vals, [-1, num_modes])
+        support_values = np.take_along_axis(vals, support_ind, axis=0)
+        support_values = np.transpose(support_values, perm=[2, 0, 1])
 
         if not return_grads:
             # Compute Lagrange polynomials
-            l_y = self.lagrange_polynomials(points[:,0], y_i, False)
-            l_z = self.lagrange_polynomials(points[:,1], z_i, False)
-            l_z_y = tf.reshape(tf.expand_dims(l_y, axis=-1)
-                            * tf.expand_dims(l_z, axis=-2),
-                            [num_samples, -1])
+            l_y = self.lagrange_polynomials(points[:, 0], y_i, False)
+            l_z = self.lagrange_polynomials(points[:, 1], z_i, False)
+            l_z_y = np.reshape(
+                np.expand_dims(l_y, axis=-1) * np.expand_dims(l_z, axis=-2),
+                [num_samples, -1],
+            )
 
             # Compute interpolated values
-            values = tf.reduce_sum(support_values*l_z_y, axis=-1)
-            return tf.squeeze(values)
+            values = np.sum(support_values * l_z_y, axis=-1)
+            return np.squeeze(values)
 
         # Compute Lagrange polynomials and derivatives
-        l_y, d1_y, d2_y = self.lagrange_polynomials(points[:,0], y_i, True)
-        l_z, d1_z, d2_z = self.lagrange_polynomials(points[:,1], z_i, True)
-        l_z_y = tf.reshape(tf.expand_dims(l_y, axis=-1)
-                           * tf.expand_dims(l_z, axis=-2),
-                           [num_samples, -1])
+        l_y, d1_y, d2_y = self.lagrange_polynomials(points[:, 0], y_i, True)
+        l_z, d1_z, d2_z = self.lagrange_polynomials(points[:, 1], z_i, True)
+        l_z_y = np.reshape(
+            np.expand_dims(l_y, axis=-1) * np.expand_dims(l_z, axis=-2),
+            [num_samples, -1],
+        )
 
         # Compute interpolated values
-        values = tf.reduce_sum(support_values*l_z_y, axis=-1)
+        values = np.sum(support_values * l_z_y, axis=-1)
 
         # Compute gradients
-        l_z_d_y = tf.reshape(tf.expand_dims(d1_y, axis=-1)
-                            * tf.expand_dims(l_z, axis=-2),
-                            [num_samples, -1])
+        l_z_d_y = np.reshape(
+            np.expand_dims(d1_y, axis=-1) * np.expand_dims(l_z, axis=-2),
+            [num_samples, -1],
+        )
 
-        d_values_dy = tf.reduce_sum(support_values*l_z_d_y, axis=-1)
+        d_values_dy = np.sum(support_values * l_z_d_y, axis=-1)
 
-        l_d_z_y = tf.reshape(tf.expand_dims(l_y, axis=-1)
-                            * tf.expand_dims(d1_z, axis=-2),
-                            [num_samples, -1])
-        d_values_dz = tf.reduce_sum(support_values*l_d_z_y, axis=-1)
+        l_d_z_y = np.reshape(
+            np.expand_dims(l_y, axis=-1) * np.expand_dims(d1_z, axis=-2),
+            [num_samples, -1],
+        )
+        d_values_dz = np.sum(support_values * l_d_z_y, axis=-1)
 
-        grads = tf.stack([tf.zeros_like(d_values_dy),
-                          d_values_dy,
-                          d_values_dz ], -1)
+        grads = np.stack([np.zeros_like(d_values_dy), d_values_dy, d_values_dz], -1)
 
         # Compute Hessians
         # 1: Compute 2nd-order partial derivatives
-        l_z_d2_y = tf.reshape(tf.expand_dims(d2_y, axis=-1)
-                              * tf.expand_dims(l_z, axis=-2),
-                              [num_samples, -1])
-        d2_values_d2_y = tf.reduce_sum(support_values*l_z_d2_y, axis=-1)
+        l_z_d2_y = np.reshape(
+            np.expand_dims(d2_y, axis=-1) * np.expand_dims(l_z, axis=-2),
+            [num_samples, -1],
+        )
+        d2_values_d2_y = np.sum(support_values * l_z_d2_y, axis=-1)
 
-        l_d2_z_y = tf.reshape(tf.expand_dims(l_y, axis=-1)
-                              * tf.expand_dims(d2_z, axis=-2),
-                              [num_samples, -1])
-        d2_values_d2_z = tf.reduce_sum(support_values*l_d2_z_y, axis=-1)
+        l_d2_z_y = np.reshape(
+            np.expand_dims(l_y, axis=-1) * np.expand_dims(d2_z, axis=-2),
+            [num_samples, -1],
+        )
+        d2_values_d2_z = np.sum(support_values * l_d2_z_y, axis=-1)
 
-        l_d_z_d_y = tf.reshape(tf.expand_dims(d1_y, axis=-1)
-                               * tf.expand_dims(d1_z, axis=-2),
-                               [num_samples, -1])
-        d2_values_d_y_d_z = tf.reduce_sum(support_values*l_d_z_d_y, axis=-1)
+        l_d_z_d_y = np.reshape(
+            np.expand_dims(d1_y, axis=-1) * np.expand_dims(d1_z, axis=-2),
+            [num_samples, -1],
+        )
+        d2_values_d_y_d_z = np.sum(support_values * l_d_z_d_y, axis=-1)
 
         # 2: Construct rows of the Hessians
-        row_2 = tf.stack([tf.zeros_like(d2_values_d2_y),
-                          d2_values_d2_y,
-                          d2_values_d_y_d_z], -1)
+        row_2 = np.stack(
+            [np.zeros_like(d2_values_d2_y), d2_values_d2_y, d2_values_d_y_d_z], -1
+        )
 
-        row_3 = tf.stack([tf.zeros_like(d2_values_d2_z),
-                          d2_values_d_y_d_z,
-                          d2_values_d2_z], -1)
+        row_3 = np.stack(
+            [np.zeros_like(d2_values_d2_z), d2_values_d_y_d_z, d2_values_d2_z], -1
+        )
 
-        row_1 = tf.zeros_like(row_2)
+        row_1 = np.zeros_like(row_2)
 
         # 3: Combine rows full Hessian matrices
-        hessians = tf.stack([row_1, row_2, row_3], axis=2)
+        hessians = np.stack([row_1, row_2, row_3], axis=2)
         return (values, grads, hessians)
+
 
 class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
     # pylint: disable=line-too-long
@@ -1008,13 +1016,13 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : tf.float or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
         Amplitude values for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
         Defaults to `None`.
 
-    mode_powers : tf.float, [num_modes]
+    mode_powers : np.float_, [num_modes]
         Relative powers or reradition coefficients of reradiation modes.
         Defaults to `None`. In this case, all reradiation modes get
         an equal fraction of the total power.
@@ -1028,11 +1036,11 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -1050,36 +1058,40 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
-    def __init__(self,
-                 cell_grid,
-                 num_modes=1,
-                 values=None,
-                 mode_powers=None,
-                 interpolator=None,
-                 dtype=tf.complex64):
-        super().__init__(cell_grid=cell_grid,
-                         num_modes=num_modes,
-                         values=values,
-                         interpolator=interpolator,
-                         dtype=dtype)
+
+    def __init__(
+        self,
+        cell_grid,
+        num_modes=1,
+        values=None,
+        mode_powers=None,
+        interpolator=None,
+        dtype=np.complex_,
+    ):
+        super().__init__(
+            cell_grid=cell_grid,
+            num_modes=num_modes,
+            values=values,
+            interpolator=interpolator,
+            dtype=dtype,
+        )
 
         if values is None:
-            self.values = tf.ones(self.shape, self._rdtype)
+            self.values = np.ones(self.shape, self._rdtype)
 
         if mode_powers is None:
-            mode_powers = 1/tf.cast(self.num_modes, self._rdtype) * \
-                          tf.ones([self.num_modes], dtype=self._rdtype)
+            mode_powers = np.ones([self.num_modes], dtype=self._rdtype) / float(self.num_modes)
         self.mode_powers = mode_powers
 
     @property
@@ -1087,19 +1099,20 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
         return self._mode_powers
 
     @mode_powers.setter
-    def mode_powers(self, v):
-        if isinstance(v, tf.Variable):
+    def mode_powers(self, v: np.ndarray):
+        if isinstance(v, np.ndarray):
             if v.dtype != self._rdtype:
                 msg = f"`mode_powers` must have dtype={self._rdtype}"
                 raise TypeError(msg)
         else:
-            v = tf.cast(v, dtype=self._rdtype)
+            v = np.ndarray(v, dtype=self._rdtype)
 
-        if not v.shape==[self.num_modes]:
+        if not v.shape == [self.num_modes]:
             msg = f"`mode_powers` must have shape [{self.num_modes}]"
             raise ValueError(msg)
 
         self._mode_powers = v
+
 
 class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
     # pylint: disable=line-too-long
@@ -1114,7 +1127,7 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
 
     A class instance is a callable that returns the profile values,
     gradients and Hessians at given points.
-    
+
     Parameters
     ----------
     cell_grid : :class:`~sionna.rt.CellGrid`
@@ -1124,7 +1137,7 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : tf.float or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
         Phase values [rad] for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
@@ -1139,11 +1152,11 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -1161,31 +1174,32 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
 
     Output
     ------
-    values : [num_modes, num_samples] or [num_samples], tf.float
+    values : [num_modes, num_samples] or [num_samples], np.float_
         Interpolated profile values at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
-    def __init__(self,
-                 cell_grid,
-                 num_modes=1,
-                 values=None,
-                 interpolator=None,
-                 dtype=tf.complex64):
-        super().__init__(cell_grid=cell_grid,
-                         num_modes=num_modes,
-                         values=values,
-                         interpolator=interpolator,
-                         dtype=dtype)
+
+    def __init__(
+        self, cell_grid, num_modes=1, values=None, interpolator=None, dtype=np.complex_
+    ):
+        super().__init__(
+            cell_grid=cell_grid,
+            num_modes=num_modes,
+            values=values,
+            interpolator=interpolator,
+            dtype=dtype,
+        )
 
         if values is None:
-            self.values = tf.zeros(self.shape, self._rdtype)
+            self.values = np.zeros(self.shape, self._rdtype)
+
 
 class RIS(RadioDevice, SceneObject):
     # pylint: disable=line-too-long
@@ -1249,11 +1263,11 @@ class RIS(RadioDevice, SceneObject):
 
     dtype : tf.complex
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     -----
-    points : tf.float, [num_samples, 2]
+    points : np.float_, [num_samples, 2]
         Tensor of 2D coordinates defining the points on the RIS at which
         the spatial modulation profile should be evaluated.
         Defaults to `None`. In this case, the values for all unit cells
@@ -1274,40 +1288,45 @@ class RIS(RadioDevice, SceneObject):
     gamma : [num_modes, num_samples] or [num_samples], tf.complex
         Spatial modulation coefficient at the sample positions
 
-    grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+    grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
         Gradients of the interpolated phase profile values
         at the sample positions. Only returned if `return_grads` is `True`.
 
-    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+    hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
         Hessians of the interpolated phase profile values
         at the sample positions. Only returned if `return_grads` is `True`.
     """
-    def __init__(self,
-                name,
-                position,
-                num_rows,
-                num_cols,
-                num_modes=1,
-                orientation=(0.,0.,0.),
-                velocity=(0.,0.,0.),
-                look_at=None,
-                color=(0.862,0.078,0.235),
-                dtype=tf.complex64):
+
+    def __init__(
+        self,
+        name,
+        position,
+        num_rows,
+        num_cols,
+        num_modes=1,
+        orientation=(0.0, 0.0, 0.0),
+        velocity=(0.0, 0.0, 0.0),
+        look_at=None,
+        color=(0.862, 0.078, 0.235),
+        dtype=np.complex_,
+    ):
 
         # Initialize the parent classes
         # RadioDevice and SceneObject inherit from Object
         # Python will initialize in the following order:
         # RadioDevice->SceneObject->Object
-        super().__init__(name=name,
-                         position=position,
-                         orientation=orientation,
-                         look_at=look_at,
-                         radio_material=None,
-                         color=color,
-                         dtype=dtype)
+        super().__init__(
+            name=name,
+            position=position,
+            orientation=orientation,
+            look_at=look_at,
+            radio_material=None,
+            color=color,
+            dtype=dtype,
+        )
 
         # Set velocity vector
-        self.velocity = tf.cast(velocity, dtype=dtype.real_dtype)
+        self.velocity = np.asarray(velocity, np.float_)
 
         if num_rows < 3 or num_cols < 3:
             raise ValueError("num_rows and num_cols must be >= 3")
@@ -1317,14 +1336,14 @@ class RIS(RadioDevice, SceneObject):
         self._cell_grid = CellGrid(num_rows, num_cols, self._dtype)
 
         # Init amplitude profile
-        self.amplitude_profile = DiscreteAmplitudeProfile(self.cell_grid,
-                                                     num_modes=self.num_modes,
-                                                     dtype=self._dtype)
+        self.amplitude_profile = DiscreteAmplitudeProfile(
+            self.cell_grid, num_modes=self.num_modes, dtype=self._dtype
+        )
 
         # Init phase profile
-        self.phase_profile = DiscretePhaseProfile(self.cell_grid,
-                                             num_modes=self.num_modes,
-                                             dtype=self._dtype)
+        self.phase_profile = DiscretePhaseProfile(
+            self.cell_grid, num_modes=self.num_modes, dtype=self._dtype
+        )
 
     @property
     def cell_grid(self):
@@ -1337,32 +1356,32 @@ class RIS(RadioDevice, SceneObject):
     @property
     def cell_positions(self):
         r"""
-        [num_cells, 2], tf.float : Cell positions in the
+        [num_cells, 2], np.float_ : Cell positions in the
             local coordinate system (LCS) of the RIS, ordered
             from top-to-bottom left-to-right.
         """
-        return self.cell_grid.cell_positions*self.spacing
+        return self.cell_grid.cell_positions * self.spacing
 
     @property
     def cell_world_positions(self):
         r"""
-        [num_cells, 3], tf.float : Cell positions in the
+        [num_cells, 3], np.float_ : Cell positions in the
             global coordinate system (GCS) of the RIS, ordered
             from top-to-bottom left-to-right.
         """
-        x_coord = tf.zeros([self.num_cells, 1], self._rdtype)
-        pos = tf.concat([x_coord, self.cell_positions], axis=-1)
+        x_coord = np.zeros([self.num_cells, 1], self._rdtype)
+        pos = np.concatenate([x_coord, self.cell_positions], axis=-1)
         pos = rotate(pos, self.orientation)
-        pos += tf.expand_dims(self.position, 0)
+        pos += np.expand_dims(self.position, 0)
         return pos
 
     @property
     def world_normal(self):
         r"""
-        [3], tf.float : Normal vector of the RIS in the
+        [3], np.float_ : Normal vector of the RIS in the
             global coordinate system (GCS)
         """
-        n_hat = tf.constant([1,0,0], self._rdtype)
+        n_hat = np.asarray([1., 0., 0.], self._rdtype)
         return rotate(n_hat, self.orientation)
 
     @property
@@ -1384,7 +1403,7 @@ class RIS(RadioDevice, SceneObject):
         r"""
         int : Number of cells
         """
-        return self.num_rows*self.num_cols
+        return self.num_rows * self.num_cols
 
     @property
     def num_modes(self):
@@ -1396,36 +1415,37 @@ class RIS(RadioDevice, SceneObject):
     @property
     def spacing(self):
         r"""
-        tf.float: Element spacing [m] corresponding to
+        np.float_: Element spacing [m] corresponding to
             half a wavelength
         """
         if hasattr(scene.Scene(), "wavelength"):
             wavelength = scene.Scene().wavelength
-            return wavelength/tf.cast(2, self._rdtype)
+            return wavelength / 2.
         else:
             # Scene is not initialized
-            return tf.cast(0.5, self._rdtype)
+            return 0.5
 
     @property
     def size(self):
         """
-        [2], tf.float : Size of the RIS (width, height) [m]
+        [2], np.float_ : Size of the RIS (width, height) [m]
         """
-        return tf.stack([self.spacing * self.num_cols,
-                          self.spacing * self.num_rows], axis=0)
+        return np.stack(
+            [self.spacing * self.num_cols, self.spacing * self.num_rows], axis=0
+        )
 
     @property
     def velocity(self):
         """
-        [3], tf.float : Get/set the velocity vector [m/s]
+        [3], np.float_ : Get/set the velocity vector [m/s]
         """
         return self._velocity
 
     @velocity.setter
-    def velocity(self, v):
-        if not tf.shape(v)==3:
+    def velocity(self, v: np.ndarray):
+        if not np.shape(v) == 3:
             raise ValueError("`velocity` must have shape [3]")
-        self._velocity = tf.cast(v, self._dtype.real_dtype)
+        self._velocity = np.ndarray(v, float)
 
     @property
     def amplitude_profile(self):
@@ -1478,64 +1498,67 @@ class RIS(RadioDevice, SceneObject):
 
         Input
         -----
-        sources : tf.float, [3] or [num_modes, 3]
+        sources : np.float_, [3] or [num_modes, 3]
             Tensor defining for every reradiation mode
             a source from which the incoming wave originates.
 
-        targets : tf.float, [3] or [num_modes, 3]
+        targets : np.float_, [3] or [num_modes, 3]
             Tensor defining for every reradiation mode
             a target towards which the incoming wave should be
             reflected.
         """
         # Convert inputs to tensors
-        sources = tf.cast(sources, self._rdtype)
-        targets = tf.cast(targets, self._rdtype)
+        sources = np.ndarray(sources, self._rdtype)
+        targets = np.ndarray(targets, self._rdtype)
         sources = expand_to_rank(sources, 2, 0)
         targets = expand_to_rank(targets, 2, 0)
         shape = [self.num_modes, 3]
 
         # Ensure the desired shape [num_modes, 3]
         for i, x in enumerate([sources, targets]):
-            if not (tf.shape(x)==shape).numpy().all():
-                msg = f"Wrong shape of input {i+1}. " + \
-                      f"Expected {shape}, got {x.shape}"
+            if not (np.shape(x) == shape).numpy().all():
+                msg = (
+                    f"Wrong shape of input {i+1}. " + f"Expected {shape}, got {x.shape}"
+                )
                 raise ValueError(msg)
 
         # Compute incoming and outgoing directions
         # [num_modes, 3]
-        k_i, _ = normalize(self.position[tf.newaxis] - sources)
-        k_r, _ = normalize(targets - self.position[tf.newaxis])
+        k_i, _ = normalize(self.position[np.newaxis] - sources)
+        k_r, _ = normalize(targets - self.position[np.newaxis])
 
         # Tangent projection operator - Eq.(10)
         # [1, 3]
-        normal = self.world_normal[tf.newaxis]
+        normal = self.world_normal[np.newaxis]
         # [1, 3, 3]
-        p = tf.eye(3, dtype=self._rdtype) - outer(normal,normal)
+        p = np.eye(3, dtype=self._rdtype) - outer(normal, normal)
 
         # Compute phase gradient - Eq.(12)
         # [num_modes, 3]
-        grad = self.scene.wavenumber * tf.linalg.matvec(p, k_i-k_r)
+        grad = self.scene.wavenumber * (p @ (k_i - k_r))
         # Rotate phase gradient to LCS of the RIS and keep y/z components
         # [num_modes, 1, 1, 2]
-        grad = rotate(grad, self.orientation, inverse=True)[:,1:]
-        grad = tf.reshape(grad, [self.num_modes, 1, 1, 2])
+        grad = rotate(grad, self.orientation, inverse=True)[:, 1:]
+        grad = np.reshape(grad, [self.num_modes, 1, 1, 2])
 
         # Using the top-left cell as reference, compute the offsets
         # [1, num_rows, num_cols, 2]
         offsets = self.cell_positions - self.cell_positions[:1]
-        offsets = tf.reshape(offsets, [self.num_cols, self.num_rows, 2])
-        offsets = tf.transpose(offsets, perm=[1,0,2])
-        offsets = tf.expand_dims(offsets, 0)
+        offsets = np.reshape(offsets, [self.num_cols, self.num_rows, 2])
+        offsets = np.transpose(offsets, perm=[1, 0, 2])
+        offsets = np.expand_dims(offsets, 0)
 
         # Compute phase profile based on the constant gradient assumption
         # [num_modes, num_rows, num_cols]
-        phases = tf.reduce_sum(offsets*grad, axis=-1)
+        phases = np.sum(offsets * grad, axis=-1)
         self.phase_profile.values = phases
 
         # Set a neutral amplitude profile
-        self.amplitude_profile.values = tf.ones_like(phases)
-        mode_powers = 1/tf.cast(self.num_modes, self._rdtype) * \
-                          tf.ones([self.num_modes], dtype=self._rdtype)
+        self.amplitude_profile.values = np.ones_like(phases)
+        mode_powers = (
+            np.ones([self.num_modes], dtype=self._rdtype)
+            / float(self.num_modes)
+        )
         self.amplitude_profile.mode_powers = mode_powers
 
     def focusing_lens(self, sources, targets):
@@ -1564,45 +1587,52 @@ class RIS(RadioDevice, SceneObject):
 
         Input
         -----
-        sources : tf.float, [3] or [num_modes, 3]
+        sources : np.float_, [3] or [num_modes, 3]
             Tensor defining for every reradiation mode
             a source from which the incoming wave originates.
 
-        targets : tf.float, [3] or [num_modes, 3]
+        targets : np.float_, [3] or [num_modes, 3]
             Tensor defining for every reradiation mode
             a target towards which the incoming wave should be
             reflected.
         """
         # Convert inputs to tensors
-        sources = tf.cast(sources, self._rdtype)
-        targets = tf.cast(targets, self._rdtype)
+        sources = np.asarray(sources, self._rdtype)
+        targets = np.asarray(targets, self._rdtype)
         sources = expand_to_rank(sources, 2, 0)
         targets = expand_to_rank(targets, 2, 0)
         shape = [self.num_modes, 3]
 
         # Ensure the desired shape [num_modes, 3]
         for i, x in enumerate([sources, targets]):
-            if not (tf.shape(x)==shape).numpy().all():
-                msg = f"Wrong shape of input {i+1}. " + \
-                      f"Expected {shape}, got {x.shape}"
+            if not (np.shape(x) == shape).numpy().all():
+                msg = (
+                    f"Wrong shape of input {i+1}. " + f"Expected {shape}, got {x.shape}"
+                )
                 raise ValueError(msg)
 
         # Compute incoming and outgoing distances
         # [num_modes, num_cells]
-        d_i = normalize(self.cell_world_positions[tf.newaxis] - sources[:,tf.newaxis])[1]
-        d_o = normalize(self.cell_world_positions[tf.newaxis] - targets[:,tf.newaxis])[1]
+        d_i = normalize(self.cell_world_positions[np.newaxis] - sources[:, np.newaxis])[
+            1
+        ]
+        d_o = normalize(self.cell_world_positions[np.newaxis] - targets[:, np.newaxis])[
+            1
+        ]
 
         # Compute phases such that the total phase shifts for all cells
         # are equal
-        phases = self.scene.wavenumber * (d_i+d_o)
-        phases = tf.reshape(phases, [self.num_modes, self.num_cols, self.num_rows])
-        phases = tf.transpose(phases, perm=[0,2,1])
+        phases = self.scene.wavenumber * (d_i + d_o)
+        phases = np.reshape(phases, [self.num_modes, self.num_cols, self.num_rows])
+        phases = np.transpose(phases, perm=[0, 2, 1])
         self.phase_profile.values = phases
 
         # Set a neutral amplitude profile
-        self.amplitude_profile.values = tf.ones_like(phases)
-        mode_powers = 1/tf.cast(self.num_modes, self._rdtype) * \
-                          tf.ones([self.num_modes], dtype=self._rdtype)
+        self.amplitude_profile.values = np.ones_like(phases)
+        mode_powers = (
+            np.ones([self.num_modes], dtype=self._rdtype)
+            / float(self.num_modes)
+        )
         self.amplitude_profile.mode_powers = mode_powers
 
     def __call__(self, points=None, mode=None, return_grads=False):
@@ -1612,7 +1642,7 @@ class RIS(RadioDevice, SceneObject):
 
         Input
         -----
-        points : tf.float, [num_samples, 2]
+        points : np.float_, [num_samples, 2]
             Tensor of 2D coordinates defining the points on the RIS at which
             the spatial modulation profile should be evaluated.
             Defaults to `None`. In this case, the values for all unit cells
@@ -1633,11 +1663,11 @@ class RIS(RadioDevice, SceneObject):
         gamma : [num_modes, num_samples] or [num_samples], tf.complex
             Spatial modulation coefficient at the sample positions
 
-        grads : [num_modes, num_samples, 3] or [num_samples, 3], tf.float
+        grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
             Gradients of the interpolated phase profile values
             at the sample positions. Only returned if `return_grads` is `True`.
 
-        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , tf.float
+        hessians : [num_modes, num_samples, 3, 3] or [num_samples, 3, 3] , np.float_
             Hessians of the interpolated phase profile values
             at the sample positions. Only returned if `return_grads` is `True`.
         """
@@ -1654,13 +1684,12 @@ class RIS(RadioDevice, SceneObject):
             chi = self.phase_profile(points, mode, False)
 
         # Compute spatial modulation coefficient
-        zero = tf.cast(0, self._rdtype)
-        gamma = tf.complex(a, zero)
-        chi = tf.complex(zero, chi)
-        p = tf.complex(tf.sqrt(p), zero)
-        gamma *= tf.exp(chi)
+        gamma = a + 0.j
+        chi = 1.j*chi
+        p = np.sqrt(p) + 0.j
+        gamma *= np.exp(chi)
         if mode is None:
-            gamma*= tf.reshape(p, [-1, 1])
+            gamma *= np.reshape(p, [-1, 1])
         else:
             gamma *= p[mode]
 
