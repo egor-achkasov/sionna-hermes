@@ -9,15 +9,21 @@ paths.
 
 import mitsuba as mi
 import drjit as dr
-import tensorflow as tf
+import numpy as np
 
-from .utils import normalize, dot, theta_phi_from_unit_vec, cross,\
-    mi_to_tf_tensor, mitsuba_rectangle_to_world
+from .utils import (
+    normalize,
+    dot,
+    theta_phi_from_unit_vec,
+    cross,
+    mi_to_tf_tensor,
+    mitsuba_rectangle_to_world,
+)
 
 
 class SolverBase:
     # pylint: disable=line-too-long
-    r"""SolverBase(scene, solver=None, dtype=tf.complex64)
+    r"""SolverBase(scene, solver=None, dtype=np.complex_)
 
     Base class for implementing a solver. If another ``solver`` is specified at
     instantiation, then it re-uses the structure to avoid useless compute and
@@ -34,9 +40,9 @@ class SolverBase:
         Another solver from which to re-use some structures to avoid useless
         compute and memory use
 
-    dtype : tf.complex64 | tf.complex128
+    dtype : np.complex_ | tf.complex128
         Datatype for all computations, inputs, and outputs.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
 
     # Small value used to discard intersection with edges, avoid
@@ -47,7 +53,7 @@ class SolverBase:
     EPSILON = 1e-5
 
     # Threshold for extracting wedges from the scene [rad]
-    WEDGES_ANGLE_THRESHOLD = 1.*PI/180.
+    WEDGES_ANGLE_THRESHOLD = 1.0 * np.pi / 180.0
 
     # Small value used to avoid false positive when testing for obstruction
     # Resolution of float32 1e-6:
@@ -55,7 +61,7 @@ class SolverBase:
     # We add on top a 100x factor for caution
     EPSILON_OBSTRUCTION = 1e-4
 
-    def __init__(self, scene, solver=None, dtype=tf.complex64):
+    def __init__(self, scene, solver=None, dtype=np.complex_):
 
         # Computes the quantities required for generating the paths.
         # More pricisely:
@@ -77,13 +83,15 @@ class SolverBase:
         #     Map Mitsuba shape indices to indices that can be used to access
         #    _prim_offsets
 
-        assert dtype in (tf.complex64, tf.complex128),\
-            "`dtype` must be tf.complex64 or tf.complex128`"
+        assert dtype in (
+            np.complex_,
+            np.complex_8,
+        ), "`dtype` must be np.complex_ or tf.complex128`"
         self._dtype = dtype
         self._rdtype = dtype.real_dtype
 
         # Mitsuba types depend on the used precision
-        if dtype == tf.complex64:
+        if dtype == np.complex_:
             self._mi_point_t = mi.Point3f
             self._mi_point2_t = mi.Point2f
             self._mi_vec_t = mi.Vector3f
@@ -134,22 +142,21 @@ class SolverBase:
         # This list tracks the indices offsets for accessing the triangles
         # making each shape.
         prim_offsets = []
-        objects_id = dr.reinterpret_array_v(mi.UInt32,
-                                            mi_scene.shapes_dr()).tf()
-        for i,s in zip(objects_id, mi_scene.shapes()):
+        objects_id = dr.reinterpret_array_v(mi.UInt32, mi_scene.shapes_dr()).tf()
+        for i, s in zip(objects_id, mi_scene.shapes()):
             if not isinstance(s, mi.Mesh):
-                raise ValueError('Only triangle meshes are supported')
+                raise ValueError("Only triangle meshes are supported")
             prim_offsets.append(n_prims)
             n_prims += s.face_count()
-            primitives_2_objects += [i]*s.face_count()
+            primitives_2_objects += [i] * s.face_count()
         # [num_objects]
-        prim_offsets = tf.cast(prim_offsets, tf.int32)
+        prim_offsets = np.asarray(prim_offsets, np.int_)
 
         # Tensor of triangles vertices
         # [n_prims, number of vertices : 3, coordinates : 3]
-        prims = tf.zeros([n_prims, 3, 3], self._rdtype)
+        prims = np.zeros([n_prims, 3, 3], self._rdtype)
         # Normals to the triangles
-        normals = tf.zeros([n_prims, 3], self._rdtype)
+        normals = np.zeros([n_prims, 3], self._rdtype)
         # Loop through the objects in the scene
         for prim_offset, s in zip(prim_offsets, mi_scene.shapes()):
             # Extract the vertices of the shape.
@@ -168,12 +175,11 @@ class SolverBase:
             vertex_coords = mi_to_tf_tensor(vertex_coords, self._rdtype)
             # Unflatten
             # [n_prims, vertices per triangle : 3, 3]
-            vertex_coords = tf.reshape(vertex_coords, [s.face_count(), 3, 3])
+            vertex_coords = np.reshape(vertex_coords, [s.face_count(), 3, 3])
             # Update the `prims` tensor
-            sl = tf.range(prim_offset, prim_offset + s.face_count(),
-                          dtype=tf.int32)
-            sl = tf.expand_dims(sl, axis=1)
-            prims = tf.tensor_scatter_nd_update(prims, sl, vertex_coords)
+            sl = np.arange(prim_offset, prim_offset + s.face_count(), dtype=np.int_)
+            sl = np.expand_dims(sl, axis=1)
+            prims[sl] = vertex_coords
             # Compute the normals to the triangles
             # Coordinate of the first vertices of every triangle making the
             # shape
@@ -189,21 +195,17 @@ class SolverBase:
             v2 = s.vertex_position(face_indices3.z)
             # Compute the normals
             # [n_prims, xyz : 3]
-            mi_n = dr.normalize(dr.cross(
-                v1 - v0,
-                v2 - v0,
-            ))
+            mi_n = dr.normalize(dr.cross(v1 - v0, v2 - v0))
             # Move to TensorFlow
             # [n_prims, 3]
             n = mi_to_tf_tensor(mi_n, self._rdtype)
             # Update the 'normals' tensor
-            normals = tf.tensor_scatter_nd_update(normals, sl, n)
+            normals[sl] = n
 
-        self._primitives = tf.Variable(prims, trainable=False)
-        self._normals = tf.Variable(normals, trainable=False)
-        primitives_2_objects = tf.cast(primitives_2_objects, tf.int32)
-        self._primitives_2_objects = tf.Variable(primitives_2_objects,
-                                                 trainable=False)
+        self._primitives = prims
+        self._normals = normals
+        primitives_2_objects = np.asarray(primitives_2_objects, np.int_)
+        self._primitives_2_objects = primitives_2_objects
 
         ####################################################
         # Used by the shoot & bounce method to map from
@@ -219,8 +221,7 @@ class SolverBase:
         else:
             # [num_objects]
             shape_indices = dr.full(mi.Int32, -1, dr.max(dest)[0] + 1)
-            dr.scatter(shape_indices, dr.arange(mi.Int32, 0,
-                       dr.width(dest)), dest)
+            dr.scatter(shape_indices, dr.arange(mi.Int32, 0, dr.width(dest)), dest)
             dr.eval(shape_indices)
             # [num_objects]
             self._shape_indices = shape_indices
@@ -252,13 +253,13 @@ class SolverBase:
         #     primitive.
 
         edges = self._extract_wedges()
-        self._wedges_origin = tf.Variable(edges[0], trainable=False)
-        self._wedges_e_hat = tf.Variable(edges[1], trainable=False)
-        self._wedges_length = tf.Variable(edges[2], trainable=False)
-        self._wedges_normals = tf.Variable(edges[3], trainable=False)
-        self._primitives_2_wedges = tf.Variable(edges[4], trainable=False)
-        self._wedges_objects = tf.Variable(edges[5], trainable=False)
-        self._is_edge = tf.Variable(edges[6], trainable=False)
+        self._wedges_origin = edges[0]
+        self._wedges_e_hat = edges[1]
+        self._wedges_length = edges[2]
+        self._wedges_normals = edges[3]
+        self._primitives_2_wedges = edges[4]
+        self._wedges_objects = edges[5]
+        self._is_edge = edges[6]
 
     ##################################################################
     # Internal utility methods
@@ -267,7 +268,7 @@ class SolverBase:
     @property
     def primitives(self):
         """
-        [num triangles, 3, 3], tf.float : The triangles: [x,y,z] coordinates of
+        [num triangles, 3, 3], np.float_ : The triangles: [x,y,z] coordinates of
         the 3 vertices of every triangle
         """
         return self._primitives
@@ -275,7 +276,7 @@ class SolverBase:
     @property
     def normals(self):
         """
-        [num triangles, 3], tf.float : The normals of the triangles
+        [num triangles, 3], np.float_ : The normals of the triangles
         """
         return self._normals
 
@@ -298,28 +299,28 @@ class SolverBase:
     @property
     def wedges_origin(self):
         """
-        [num_wedges, 3], tf.float : Origin of the wedges
+        [num_wedges, 3], np.float_ : Origin of the wedges
         """
         return self._wedges_origin
 
     @property
     def wedges_e_hat(self):
         """
-        [num_wedges, 3], tf.float : Normalized edge vector
+        [num_wedges, 3], np.float_ : Normalized edge vector
         """
         return self._wedges_e_hat
 
     @property
     def wedges_length(self):
         """
-        [num_wedges], tf.float : Length of the wedges
+        [num_wedges], np.float_ : Length of the wedges
         """
         return self._wedges_length
 
     @property
     def wedges_normals(self):
         """
-        [num_wedges, 2, 3], tf.float : Normals to the wedges sides
+        [num_wedges, 2, 3], np.float_ : Normals to the wedges sides
         """
         return self._wedges_normals
 
@@ -341,7 +342,7 @@ class SolverBase:
     @property
     def is_edge(self):
         """
-        [num_wedges], tf.bool : Set to `True` if a wedge is an edge, i.e.,
+        [num_wedges], np.bool_ : Set to `True` if a wedge is an edge, i.e.,
         the edge of a single primitive.
         """
         return self._is_edge
@@ -359,33 +360,32 @@ class SolverBase:
         relative_permittivity : [num_shape], tf.complex
             Tensor containing the complex relative permittivities of all shapes
 
-        scattering_coefficient : [num_shape], tf.float
+        scattering_coefficient : [num_shape], np.float_
             Tensor containing the scattering coefficients of all shapes
 
-        xpd_coefficient : [num_shape], tf.float
+        xpd_coefficient : [num_shape], np.float_
             Tensor containing the cross-polarization discrimination
             coefficients of all shapes
 
-        alpha_r : [num_shape], tf.float
+        alpha_r : [num_shape], np.float_
             Tensor containing the alpha_r scattering parameters of all shapes
 
-        alpha_i : [num_shape], tf.float
+        alpha_i : [num_shape], np.float_
             Tensor containing the alpha_i scattering parameters of all shapes
 
-        lambda_ : [num_shape], tf.float
+        lambda_ : [num_shape], np.float_
             Tensor containing the lambda_ scattering parameters of all shapes
 
-        velocity : [num_shape], tf.float
+        velocity : [num_shape], np.float_
             Tensor containing the velocity vectors of all shapes
         """
 
-        objects_id = dr.reinterpret_array_v(mi.UInt32,
-                                            self._mi_scene.shapes_dr()).tf()
+        objects_id = dr.reinterpret_array_v(mi.UInt32, self._mi_scene.shapes_dr()).tf()
 
         # Compute the size of the parameter tensors for all object_ids
         # We start indexing at 1 (not 0) and need to add the number of
         # RIS is the system
-        array_size  = tf.reduce_max(objects_id) + 1 + len(self._scene.ris)
+        array_size = np.max(objects_id) + 1 + len(self._scene.ris)
 
         # If a callable is set to obtain radio material properties, then there
         # is no need to build the tensors of material properties
@@ -396,86 +396,60 @@ class SolverBase:
         sp_callable_set = self._scene.scattering_pattern_callable is not None
 
         if rm_callable_set:
-            relative_permittivity = tf.zeros([0], self._dtype)
-            scattering_coefficient = tf.zeros([0], self._rdtype)
-            xpd_coefficient = tf.zeros([0], self._rdtype)
+            relative_permittivity = np.zeros([0], self._dtype)
+            scattering_coefficient = np.zeros([0], self._rdtype)
+            xpd_coefficient = np.zeros([0], self._rdtype)
         else:
-            relative_permittivity = tf.zeros([array_size], self._dtype)
-            scattering_coefficient = tf.zeros([array_size], self._rdtype)
-            xpd_coefficient = tf.zeros([array_size], self._rdtype)
+            relative_permittivity = np.zeros([array_size], self._dtype)
+            scattering_coefficient = np.zeros([array_size], self._rdtype)
+            xpd_coefficient = np.zeros([array_size], self._rdtype)
 
         if sp_callable_set:
-            alpha_r = tf.zeros([0], tf.int32)
-            alpha_i = tf.zeros([0], tf.int32)
-            lambda_ = tf.zeros([0], self._rdtype)
+            alpha_r = np.zeros([0], np.int_)
+            alpha_i = np.zeros([0], np.int_)
+            lambda_ = np.zeros([0], self._rdtype)
         else:
-            alpha_r = tf.zeros([array_size], tf.int32)
-            alpha_i = tf.zeros([array_size], tf.int32)
-            lambda_ = tf.zeros([array_size], self._rdtype)
+            alpha_r = np.zeros([array_size], np.int_)
+            alpha_i = np.zeros([array_size], np.int_)
+            lambda_ = np.zeros([array_size], self._rdtype)
 
         if (not sp_callable_set) or (not rm_callable_set):
 
             for rm in self._scene.radio_materials.values():
                 using_objects = rm.using_objects
-                num_using_objects = tf.shape(using_objects)[0]
+                num_using_objects = np.shape(using_objects)[0]
                 if num_using_objects == 0:
                     continue
 
+                def f(x):
+                    return np.full([num_using_objects], x)
+                idx = np.reshape(using_objects, [-1, 1])
                 if not rm_callable_set:
-                    relative_permittivity = tf.tensor_scatter_nd_update(
-                        relative_permittivity,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects],
-                                rm.complex_relative_permittivity))
-
-                    scattering_coefficient = tf.tensor_scatter_nd_update(
-                        scattering_coefficient,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects], rm.scattering_coefficient))
-
-                    xpd_coefficient = tf.tensor_scatter_nd_update(
-                        xpd_coefficient,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects], rm.xpd_coefficient))
-
-                if not sp_callable_set:
-                    alpha_r = tf.tensor_scatter_nd_update(
-                        alpha_r,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects],
-                                rm.scattering_pattern.alpha_r))
-
-                    alpha_i = tf.tensor_scatter_nd_update(
-                        alpha_i,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects],
-                                rm.scattering_pattern.alpha_i))
-
-                    lambda_ = tf.tensor_scatter_nd_update(
-                        lambda_,
-                        tf.reshape(using_objects, [-1,1]),
-                        tf.fill([num_using_objects],
-                                rm.scattering_pattern.lambda_))
+                    relative_permittivity[idx] = f(rm.complex_relative_permittivity)
+                    scattering_coefficient[idx] = f(rm.scattering_coefficient)
+                    xpd_coefficient[idx] = f(rm.xpd_coefficient)
+                else:
+                    alpha_r[idx] = f(rm.scattering_pattern.alpha_r)
+                    alpha_i[idx] = f(rm.scattering_pattern.alpha_i)
+                    lambda_[idx] = f(rm.scattering_pattern.lambda_)
 
         # Velocity of all objects
         # [array_size, 3]
-        velocity = tf.zeros([array_size, 3], self._rdtype)
+        velocity = np.zeros([array_size, 3], self._rdtype)
         for obj in self._scene.objects.values():
-            velocity = tf.tensor_scatter_nd_update(velocity,
-                                                    [[obj.object_id]],
-                                                    [obj.velocity])
+            velocity[obj.object_id] = obj.velocity
         for obj in self._scene.ris.values():
-            velocity = tf.tensor_scatter_nd_update(velocity,
-                                                    [[obj.object_id]],
-                                                    [obj.velocity])
+            velocity[obj.object_id] = obj.velocity
 
-        return (relative_permittivity,
-               scattering_coefficient,
-               xpd_coefficient,
-               alpha_r,
-               alpha_i,
-               lambda_,
-               velocity)
+        return (
+            relative_permittivity,
+            scattering_coefficient,
+            xpd_coefficient,
+            alpha_r,
+            alpha_i,
+            lambda_,
+            velocity,
+        )
 
     def _test_obstruction(self, o, d, maxt, additional_blockers=None):
         r"""
@@ -483,14 +457,14 @@ class SolverBase:
 
         Input
         -----
-        o: [batch_size, 3], tf.float
+        o: [batch_size, 3], np.float_
             Origin of the rays
 
-        d: [batch_size, 3], tf.float
+        d: [batch_size, 3], np.float_
             Direction of the rays.
             Must be unit vectors.
 
-        maxt: [batch_size], tf.float
+        maxt: [batch_size], np.float_
             Length of the ray
 
         additional_blockers : mi.Scene | mi.Shape | None
@@ -499,13 +473,13 @@ class SolverBase:
 
         Output
         -------
-        val: [batch_size], tf.bool
+        val: [batch_size], np.bool_
             `True` if the ray is obstructed, i.e., hits a primitive.
             `False` otherwise.
         """
         # Translate the origin a bit along the ray direction to avoid
         # consecutive intersection with the same primitive
-        o = o + SolverBase.EPSILON_OBSTRUCTION*d
+        o = o + SolverBase.EPSILON_OBSTRUCTION * d
         # [batch_size, 3]
         mi_o = self._mi_point_t(o)
         # Ray direction
@@ -515,20 +489,21 @@ class SolverBase:
         # Reduce the ray length by a small value to avoid false positive when
         # testing for LoS to a primitive due to hitting the primitive we are
         # testing visibility to.
-        maxt = maxt - 2.*SolverBase.EPSILON_OBSTRUCTION
+        maxt = maxt - 2.0 * SolverBase.EPSILON_OBSTRUCTION
         mi_maxt = self._mi_scalar_t(maxt)
         # Mitsuba ray
-        mi_ray = mi.Ray3f(o=mi_o, d=mi_d, maxt=mi_maxt, time=0.,
-                          wavelengths=mi.Color0f(0.))
+        mi_ray = mi.Ray3f(
+            o=mi_o, d=mi_d, maxt=mi_maxt, time=0.0, wavelengths=mi.Color0f(0.0)
+        )
         # Test for obstruction using Mitsuba
         # With the scene
         # [batch_size]
         mi_val = self._mi_scene.ray_test(mi_ray)
-        val = mi_to_tf_tensor(mi_val, tf.bool)
+        val = mi_to_tf_tensor(mi_val, np.bool_)
         # With additional blockers
         if additional_blockers:
             mi_val = additional_blockers.ray_test(mi_ray)
-            val = tf.logical_or(val, mi_to_tf_tensor(mi_val, tf.bool))
+            val = np.logical_or(val, mi_to_tf_tensor(mi_val, np.bool_))
         return val
 
     def _extract_wedges(self):
@@ -565,20 +540,17 @@ class SolverBase:
 
         # Extract vertices of every triangle
         # [num_prim, 3]
-        v0 = self._primitives[:,0,:]
-        v1 = self._primitives[:,1,:]
-        v2 = self._primitives[:,2,:]
+        v0 = self._primitives[:, 0, :]
+        v1 = self._primitives[:, 1, :]
+        v2 = self._primitives[:, 2, :]
 
         # List all edges
         # [num_prim, 2 + 2 + 2, 3]
-        all_edges_undirected = tf.concat([
-            v0, v1,
-            v1, v2,
-            v2, v0
-        ], axis=1)
+        all_edges_undirected = np.concatenate([v0, v1, v1, v2, v2, v0], axis=1)
         # [num_edges = num_prim*3, 2, 3]
-        all_edges_undirected = tf.reshape(all_edges_undirected,
-                                          shape=(3 * v0.shape[0], 2, 3))
+        all_edges_undirected = np.reshape(
+            all_edges_undirected, shape=(3 * v0.shape[0], 2, 3)
+        )
         # Edges are oriented such that identical edges have same orientation
         # [num_edges, 2, 3]
         all_edges = self._swap_edges(all_edges_undirected)
@@ -586,27 +558,25 @@ class SolverBase:
         # Remaining point in the triangle for each edge.
         # This will be used to compute the normals later
         # [num_prim, 3, 3]
-        remaining_vertex = tf.concat([v2,
-                                      v0,
-                                      v1], axis=1)
+        remaining_vertex = np.concatenate([v2, v0, v1], axis=1)
         # [num_edges, 3]
-        remaining_vertex = tf.reshape(remaining_vertex, [-1, 3])
+        remaining_vertex = np.reshape(remaining_vertex, [-1, 3])
 
         # Get unique edges, i.e., wihout duplicates
         # unique_edges : [num_unique_edges, 2, 3]
         # indices_of_unique : [num_edges], index of the edge in ``unique_edges``
-        unique_edges, indices_of_unique = tf.raw_ops.UniqueV2(x=all_edges,
-                                                              axis=[0])
+        unique_edges, indices_of_unique = np.unique(x=all_edges, axis=[0])
 
         # Number of occurences of every unique edge
         # [num_unique_edges]
-        _, _, unique_indices_count = tf.unique_with_counts(indices_of_unique)
+        _, _, unique_indices_count = np.unique_with_counts(indices_of_unique)
 
         # Flag indicating which edges shared by exactly one or two primitives,
         # i.e., edges or wedges
         # [num_unique_edges]
-        is_selected = tf.logical_or(tf.equal(unique_indices_count, 1),
-                                    tf.equal(unique_indices_count, 2))
+        is_selected = np.logical_or(
+            np.equal(unique_indices_count, 1), np.equal(unique_indices_count, 2)
+        )
 
         # The following tensor lists the index of the first
         # edge in ``all_edges`` that makes the wedge.
@@ -614,36 +584,30 @@ class SolverBase:
         # (i.e. our case), it is not deterministic which of them
         # `tensor_scatter_nd_update` will store into the result. That's okay.
         # [num_edges]
-        seq = tf.cast(tf.range(indices_of_unique.shape[0]), dtype=tf.int32)
+        seq = np.arange(indices_of_unique.shape[0])
         # [num_unique_edges]
-        default = tf.cast(tf.fill(dims=unique_edges.shape[0], value=-1),
-                          dtype=tf.int32)
+        default = np.full((unique_edges.shape[0],), fill_value=-1)
         # [num_unique_edges]
-        all_edges_index_1 = tf.tensor_scatter_nd_update(default,
-                                            indices_of_unique[:, None], seq)
+        default[indices_of_unique] = seq
+        all_edges_index_1 = default
         # Next, list the second primitive that the wedge is connected to.
         # -1 is used for edges defined by a single primitive (screens)
-        # [num_unique_edges]
-        false_value = tf.fill(dims=all_edges_index_1.shape[0], value=False)
         # [num_edges]
-        missing = tf.fill(dims=indices_of_unique.shape[0], value=True)
-        missing = tf.tensor_scatter_nd_update(missing,
-                                              all_edges_index_1[:, None],
-                                              false_value)
+        missing = np.full((indices_of_unique.shape[0],), fill_value=True)
+        missing[all_edges_index_1] = False
         # [num_unique_edges]
-        all_edges_index_2 = tf.tensor_scatter_nd_update(default,
-                            indices_of_unique[missing][:, None], seq[missing])
+        default[indices_of_unique[missing]] = seq[missing]
+        all_edges_index_2 = default
         # Flag set to True if an edge is not a wedge, i.e., is attached to only
         # one primitive. This is the case for unique edges for which
         # ``all_edges_index_2`` is not set to -1
         # [num_unique_edges]
-        is_edge = tf.equal(all_edges_index_2, -1)
+        is_edge = np.equal(all_edges_index_2, -1)
         # For edges, the unique edge primitive is set to the same value for both
         # ``all_edges_index_1`` and ``all_edges_index_2``. This will lead to
         # mapping to the same primitive
         # [num_unique_edges]
-        all_edges_index_2 = tf.where(is_edge, all_edges_index_1,
-                                     all_edges_index_2)
+        all_edges_index_2 = np.where(is_edge, all_edges_index_1, all_edges_index_2)
 
         # Normals to the faces
         # We compute the normals such that they point in the same direction
@@ -656,23 +620,23 @@ class SolverBase:
         #   edge belongs.
         # Edge vertices
         # [num_unique_edges, 2, 3]
-        vs = tf.gather(all_edges, all_edges_index_1)
+        vs = np.take(all_edges, all_edges_index_1)
         # [num_unique_edges, 3]
-        v1 = vs[:,0]
-        v2 = vs[:,1]
+        v1 = vs[:, 0]
+        v2 = vs[:, 1]
         # Edge vector
         # [num_unique_edges, 3]
         e = v2 - v1
         # Vertex on the 0 and n faces
         # [num_unique_edges, 3]
-        vf1 = tf.gather(remaining_vertex, all_edges_index_1)
-        vf2 = tf.gather(remaining_vertex, all_edges_index_2)
+        vf1 = np.take(remaining_vertex, all_edges_index_1)
+        vf2 = np.take(remaining_vertex, all_edges_index_2)
         # [num_unique_edges, 3]
-        u_1,_ = normalize(vf1 - v1)
-        u_2,_ = normalize(vf2 - v1)
+        u_1, _ = normalize(vf1 - v1)
+        u_2, _ = normalize(vf2 - v1)
         # [num_unique_edges, 3]
-        n1,_ = normalize(cross(e, u_1))
-        n2,_ = normalize(cross(u_2, e))
+        n1, _ = normalize(cross(e, u_1))
+        n2, _ = normalize(cross(u_2, e))
 
         # We flip the normals if necessary to ensure that they point towards
         # the "exterior" of the wedge, i.e., that the exterior angle is at least
@@ -689,16 +653,18 @@ class SolverBase:
         # parallel. In that cases, either the wedge is an edge, or it is a flat
         # surface that must be discarded
         # [num_unique_edges]
-        flip = tf.where(tf.greater(cos_angle, tf.zeros_like(cos_angle)),
-                        -tf.ones_like(cos_angle),
-                        tf.ones_like(cos_angle))
+        flip = np.where(
+            np.greater(cos_angle, np.zeros_like(cos_angle)),
+            -np.ones_like(cos_angle),
+            np.ones_like(cos_angle),
+        )
         # [num_unique_edges, 1]
-        flip = tf.expand_dims(flip, axis=1)
+        flip = np.expand_dims(flip, axis=1)
         # [num_unique_edges, 3]
-        n1 = n1*flip
-        n2 = n2*flip
+        n1 = n1 * flip
+        n2 = n2 * flip
         # Discard the wedges considered as flat, i.e., with an opening angle
-        # close to PI up to `angle_threshold`
+        # close to np.pi up to `angle_threshold`
         # We use this observation to discard close-to-flat wedges.
         # cos_angle = dot(u_2, n1) = cos(theta)
         # where theta= angle(u_2, n1).
@@ -708,30 +674,30 @@ class SolverBase:
         #                                       < cos(pi/2 - angle_threshold)
         # => -sin(angle_threshold) < cos_angle < sin(angle_threshold)
         # ()
-        theshold = tf.abs(tf.math.sin(tf.cast(angle_threshold, self._rdtype)))
+        theshold = np.abs(np.sin(np.asarray(angle_threshold, self._rdtype)))
         # [num_unique_edges]
-        is_selected_ = tf.greater(tf.abs(cos_angle),theshold)
+        is_selected_ = np.greater(np.abs(cos_angle), theshold)
         # Don't discard edges
         # [num_unique_edges]
-        is_selected_ = tf.logical_or(is_edge, is_selected_)
+        is_selected_ = np.logical_or(is_edge, is_selected_)
         # [num_unique_edges]
-        is_selected = tf.logical_and(is_selected, is_selected_)
+        is_selected = np.logical_and(is_selected, is_selected_)
 
         # Extract only the selected lanes
         # [num_selected_edges]
-        selected_indices = tf.where(is_selected)[:, 0]
+        selected_indices = np.where(is_selected)[:, 0]
         # [num_selected_edges, 2, 3]
         selected_edges = unique_edges[is_selected]
         # [num_selected_edges, 3]
-        selected_wedges_start = selected_edges[:,0]
-        selected_wedges_end = selected_edges[:,1]
+        selected_wedges_start = selected_edges[:, 0]
+        selected_wedges_end = selected_edges[:, 1]
         # [num_selected_edges, 3]
         n1 = n1[is_selected]
         n2 = n2[is_selected]
         # [num_selected_edges, 2, 3]
         # n1: 0-face
         # n2: n-face
-        normals = tf.stack([n1, n2], axis=1)
+        normals = np.stack([n1, n2], axis=1)
 
         # Pre-compute a mapping from primitive index to (up to) three wedges.
         # Recall that by construction, `all_edges` is ordered by
@@ -743,20 +709,18 @@ class SolverBase:
         # In the end, all we need to do is renumber the values of
         # `indices_of_unique` to refer to rows of `selected_edges` instead of
         # rows of `unique_edges`.
-        seq = tf.cast(tf.range(selected_edges.shape[0]), dtype=tf.int32)
-        unique_edge_index_to_double_edge_index = \
-            tf.tensor_scatter_nd_update(default, selected_indices[:, None], seq)
+        seq = np.asarray(np.arange(selected_edges.shape[0]), dtype=np.int_)
+        default[selected_indices] = seq
+        unique_edge_index_to_double_edge_index = default
         # [num_prim, 3]
-        prim_to_wedges = tf.reshape(
-            tf.gather(unique_edge_index_to_double_edge_index,indices_of_unique),
-            (-1, 3)
+        prim_to_wedges = np.reshape(
+            np.take(unique_edge_index_to_double_edge_index, indices_of_unique), (-1, 3)
         )
 
         # Indices of the objects to which each edge belongs
         # First, indices (in all_edges) of edges
         # [num_unique_edges, 2]
-        wedges_indices = tf.stack([all_edges_index_1,
-                                   all_edges_index_2], axis=1)
+        wedges_indices = np.stack([all_edges_index_1, all_edges_index_2], axis=1)
         # Keep only the selected wedges
         # [num_selected_edges, 2]
         wedges_indices = wedges_indices[is_selected]
@@ -764,10 +728,10 @@ class SolverBase:
         is_edge = is_edge[is_selected]
         # Wedges index 2 primitive index
         # [num_selected_edges, 2]
-        wedges_2_prim = wedges_indices//3
+        wedges_2_prim = wedges_indices // 3
         # Primitive index 2 object index
         # [num_selected_edges, 2]
-        wedges_2_object = tf.gather(self._primitives_2_objects, wedges_2_prim)
+        wedges_2_object = np.take(self._primitives_2_objects, wedges_2_prim)
 
         # Edges length and edge vector
         # The edge vector e_hat must be such that:
@@ -775,32 +739,32 @@ class SolverBase:
         # where n_0 is the normal to the 0-face and n_n the normal to the
         # n-face
         # [num_selected_edges, 3]
-        e_hat,_ = normalize(cross(normals[...,0,:],normals[...,1,:]))
+        e_hat, _ = normalize(cross(normals[..., 0, :], normals[..., 1, :]))
         # Select the wedges' origin according to the normals
         # e_hat_ind: [num_selected_edges, 3]
         # length : [num_selected_edges]
-        e_hat_ind,length = normalize(selected_wedges_end-selected_wedges_start)
+        e_hat_ind, length = normalize(selected_wedges_end - selected_wedges_start)
         # [num_selected_edges]
         origin_indicator = dot(e_hat, e_hat_ind)
         # [num_selected_edges, 3]
-        origin_indicator = tf.expand_dims(origin_indicator, axis=1)
-        origin = tf.where(origin_indicator < 0,
-                          selected_wedges_end,
-                          selected_wedges_start)
+        origin_indicator = np.expand_dims(origin_indicator, axis=1)
+        origin = np.where(
+            origin_indicator < 0, selected_wedges_end, selected_wedges_start
+        )
         # Set arbitrarely the vector for the edges
         # [num_selected_edges, 3]
-        e_hat = tf.where(tf.expand_dims(is_edge, axis=1), e_hat_ind, e_hat)
+        e_hat = np.where(np.expand_dims(is_edge, axis=1), e_hat_ind, e_hat)
 
         # Output
         output = (
-                    origin,                 # wedges origins
-                    e_hat,                  # Wedge vector
-                    length,                 # Wedge length
-                    normals,                # wedges_normals
-                    prim_to_wedges,         # primitives_2_wedges
-                    wedges_2_object,        # wedges_objects
-                    is_edge                 # is_edge
-                 )
+            origin,  # wedges origins
+            e_hat,  # Wedge vector
+            length,  # Wedge length
+            normals,  # wedges_normals
+            prim_to_wedges,  # primitives_2_wedges
+            wedges_2_object,  # wedges_objects
+            is_edge,  # is_edge
+        )
 
         return output
 
@@ -818,8 +782,8 @@ class SolverBase:
         [..., 2, 3], float
             Reoriented edges
         """
-        p0 = edges[:,0,:]
-        p1 = edges[:,1,:]
+        p0 = edges[:, 0, :]
+        p1 = edges[:, 1, :]
         p0_hat, r0 = normalize(p0)
         p1_hat, r1 = normalize(p1)
         theta0, phi0 = theta_phi_from_unit_vec(p0_hat)
@@ -839,24 +803,28 @@ class SolverBase:
         # needs_swap 3: r_equal and phi_equal and theta0 > theta1
         # Note: case when all three coordinates are equal is not considered
 
-        r_equal = tf.experimental.numpy.isclose(r0, r1)
-        phi_equal = tf.experimental.numpy.isclose(phi0, phi1)
-        case_2 = tf.logical_and(r_equal, tf.logical_not(phi_equal))
-        case_3 = tf.logical_and(r_equal, phi_equal)
+        r_equal = np.isclose(r0, r1)
+        phi_equal = np.isclose(phi0, phi1)
+        case_2 = np.logical_and(r_equal, np.logical_not(phi_equal))
+        case_3 = np.logical_and(r_equal, phi_equal)
 
-        needs_swap_1 = tf.logical_and(tf.logical_not(r_equal), r0 > r1)
-        needs_swap_2 = tf.logical_and(case_2, phi0 > phi1)
-        needs_swap_3 = tf.logical_and(case_3, theta0 > theta1)
+        needs_swap_1 = np.logical_and(np.logical_not(r_equal), r0 > r1)
+        needs_swap_2 = np.logical_and(case_2, phi0 > phi1)
+        needs_swap_3 = np.logical_and(case_3, theta0 > theta1)
 
-        needs_swap = tf.reduce_any(tf.stack([needs_swap_1,
-                                             needs_swap_2,
-                                             needs_swap_3], axis=1),
-                                   keepdims=True, axis=1)
+        needs_swap = np.any(
+            np.stack([needs_swap_1, needs_swap_2, needs_swap_3], axis=1),
+            keepdims=True,
+            axis=1,
+        )
 
-        result = tf.concat([
-            tf.expand_dims(tf.where(needs_swap, p1, p0), axis=1),
-            tf.expand_dims(tf.where(needs_swap, p0, p1), axis=1),
-        ], axis=1)
+        result = np.concatenate(
+            [
+                np.expand_dims(np.where(needs_swap, p1, p0), axis=1),
+                np.expand_dims(np.where(needs_swap, p0, p1), axis=1),
+            ],
+            axis=1,
+        )
         return result
 
     def _wedges_from_primitives(self, candidates, edge_diffraction):
@@ -889,37 +857,36 @@ class SolverBase:
         # If no candidates, return an empty list
         # Useful to manage empty scenes
         if candidates.shape[0] == 0:
-            return tf.constant([], tf.int32)
+            return np.asarray([], np.int_)
 
         # Remove -1
-        candidates = tf.gather(candidates,
-                               tf.where(tf.not_equal(candidates, -1))[:,0])
+        candidates = np.take(candidates, np.where(np.not_equal(candidates, -1))[:, 0])
 
         # Remove duplicates
-        candidates,_ = tf.unique(candidates)
+        candidates, _ = np.unique(candidates)
 
         # [num_samples, 3]
-        candidate_wedges = tf.gather(self._primitives_2_wedges, candidates,
-                                     axis=0)
+        candidate_wedges = np.take(self._primitives_2_wedges, candidates, axis=0)
         # [num_samples*3]
-        candidate_wedges = tf.reshape(candidate_wedges, [-1])
+        candidate_wedges = np.reshape(candidate_wedges, [-1])
 
         # Remove -1
         # [<= num_samples*3]
-        candidate_wedges = tf.gather(candidate_wedges,
-                            tf.where(tf.not_equal(candidate_wedges, -1))[:,0])
+        candidate_wedges = np.take(
+            candidate_wedges, np.where(np.not_equal(candidate_wedges, -1))[:, 0]
+        )
 
         # Remove duplicates
         # [num_candidate_wedges]
-        candidate_wedges,_ = tf.unique(candidate_wedges)
+        candidate_wedges, _ = np.unique(candidate_wedges)
 
         # Remove edges if required
         if not edge_diffraction:
             # [num_candidate_wedges]
-            is_wedge = ~tf.gather(self._is_edge, candidate_wedges)
-            wedge_indices = tf.where(is_wedge)[:,0]
+            is_wedge = ~np.take(self._is_edge, candidate_wedges)
+            wedge_indices = np.where(is_wedge)[:, 0]
             # [num_candidate_wedges]
-            candidate_wedges = tf.gather(candidate_wedges, wedge_indices)
+            candidate_wedges = np.take(candidate_wedges, wedge_indices)
 
         return candidate_wedges
 
@@ -942,11 +909,10 @@ class SolverBase:
             center = ris.position
             orientation = ris.orientation
             size = ris.size
-            mi_to_world = mitsuba_rectangle_to_world(center, orientation, size,
-                                                     ris=True)
-            scene_dict[ris.name] = {"type"     : "rectangle",
-                                    "to_world" : mi_to_world
-                                   }
+            mi_to_world = mitsuba_rectangle_to_world(
+                center, orientation, size, ris=True
+            )
+            scene_dict[ris.name] = {"type": "rectangle", "to_world": mi_to_world}
         mi_ris_scene = mi.load_dict(scene_dict)
 
         return mi_ris_scene
