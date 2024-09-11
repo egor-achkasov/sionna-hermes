@@ -50,10 +50,11 @@ class Camera(Object):
     # The following transform peforms a rotation to ensure Sionna's
     # convention.
     # Note: Mitsuba uses degrees
-    mi_2_sionna = ( mi.ScalarTransform4f.rotate([0,0,1], 90.0)
-                @ mi.ScalarTransform4f.rotate([1,0,0], 90.0) )
+    mi_2_sionna = mi.ScalarTransform4f.rotate(
+        [0, 0, 1], 90.0
+    ) @ mi.ScalarTransform4f.rotate([1, 0, 0], 90.0)
 
-    def __init__(self, name, position, orientation=(0.,0.,0.), look_at=None):
+    def __init__(self, name, position, orientation=(0.0, 0.0, 0.0), look_at=None):
 
         # Keep track of the "to world" transform.
         # Initialized to identity.
@@ -78,7 +79,7 @@ class Camera(Object):
             raise ValueError(msg)
         # Update transform
         to_world = self._to_world.matrix.numpy()
-        to_world[:3,3] = new_position
+        to_world[:3, 3] = new_position
         self._to_world = mi.ScalarTransform4f(to_world)
 
     @property
@@ -99,14 +100,14 @@ class Camera(Object):
 
         # Mitsuba transform
         # Note: Mitsuba uses degrees
-        new_orientation = new_orientation*180.0/np.pi
-        rot_x = mi.ScalarTransform4f.rotate([1,0,0], new_orientation[2])
-        rot_y = mi.ScalarTransform4f.rotate([0,1,0], new_orientation[1])
-        rot_z = mi.ScalarTransform4f.rotate([0,0,1], new_orientation[0])
-        rot_mat = rot_z@rot_y@rot_x@Camera.mi_2_sionna
+        new_orientation = new_orientation * 180.0 / np.pi
+        rot_x = mi.ScalarTransform4f.rotate([1, 0, 0], new_orientation[2])
+        rot_y = mi.ScalarTransform4f.rotate([0, 1, 0], new_orientation[1])
+        rot_z = mi.ScalarTransform4f.rotate([0, 0, 1], new_orientation[0])
+        rot_mat = rot_z @ rot_y @ rot_x @ Camera.mi_2_sionna
         # Translation to keep the current position
         trs = mi.ScalarTransform4f.translate(self.position)
-        to_world = trs@rot_mat
+        to_world = trs @ rot_mat
         # Update in Mitsuba
         self._to_world = to_world
 
@@ -129,8 +130,10 @@ class Camera(Object):
         # Get position to look at
         if isinstance(target, str):
             if self.scene is None:
-                msg = f"Cannot look for radio device '{target}' as the camera"\
-                       " is not part of the scene"
+                msg = (
+                    f"Cannot look for radio device '{target}' as the camera"
+                    " is not part of the scene"
+                )
                 raise ValueError(msg)
             item = self.scene.get(target)
             if not isinstance(item, Object):
@@ -140,7 +143,7 @@ class Camera(Object):
                 target = item.position.numpy()
         else:
             target = np.array(target).astype(float)
-            if not ( (target.ndim == 1) and (target.shape[0] == 3) ):
+            if not ((target.ndim == 1) and (target.shape[0] == 3)):
                 raise ValueError("`x` must be a three-element vector)")
 
         # If the position and the target are on a line that is parallel to z,
@@ -149,8 +152,9 @@ class Camera(Object):
         if np.allclose(self.position[:2], target[:2]):
             target[0] = target[0] + 1e-3
         # Look-at transform
-        trf = mi.ScalarTransform4f.look_at(self.position, target,
-                                           [0.0, 0.0, 1.0]) # Sionna uses Z-up
+        trf = mi.ScalarTransform4f.look_at(
+            self.position, target, [0.0, 0.0, 1.0]
+        )  # Sionna uses Z-up
         # Set the rotation matrix of the Mitsuba sensor
         self._to_world = trf
 
@@ -181,19 +185,20 @@ class Camera(Object):
         """
 
         # Undo the rotation to switch from Mitsuba to Sionna convention
-        to_world = to_world@Camera.mi_2_sionna.inverse()
+        to_world = to_world @ Camera.mi_2_sionna.inverse()
 
         # Extract the rotation matrix
         to_world = to_world.matrix.numpy()
         if to_world.ndim == 3:
             to_world = to_world[0]
-        r_mat = to_world[:3,:3]
+        r_mat = to_world[:3, :3]
 
         # Compute angles
-        x_ang = np.arctan2(r_mat[2,1], r_mat[2,2])
-        y_ang = np.arctan2(-r_mat[2,0],
-                        np.sqrt(np.square(r_mat[2,1]) + np.square(r_mat[2,2])))
-        z_ang = np.arctan2(r_mat[1,0], r_mat[0,0])
+        x_ang = np.arctan2(r_mat[2, 1], r_mat[2, 2])
+        y_ang = np.arctan2(
+            -r_mat[2, 0], np.sqrt(np.square(r_mat[2, 1]) + np.square(r_mat[2, 2]))
+        )
+        z_ang = np.arctan2(r_mat[1, 0], r_mat[0, 0])
 
         return np.array([z_ang, y_ang, x_ang])
 
@@ -216,5 +221,5 @@ class Camera(Object):
         to_world = to_world.matrix.numpy()
         if to_world.ndim == 3:
             to_world = to_world[0]
-        position = to_world[:3,3]
+        position = to_world[:3, 3]
         return position
