@@ -27,7 +27,6 @@ As a Hermes submodule. Follow the [installation instructions](https://hermespy.o
 - Remove unused functions and properties:
     - Paths.reverse_direction
     - acos_diff
-- Replace `assert` with `raise`
 
 # Sionna: An Open-Source Library for Next-Generation Physical Layer Research
 

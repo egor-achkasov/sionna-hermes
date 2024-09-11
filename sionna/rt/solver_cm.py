@@ -30,7 +30,6 @@ from .utils import (
     cot,
     sign,
     sample_points_on_hemisphere,
-    acos_diff,
     gen_basis_from_z,
     compute_spreading_factor,
     mitsuba_rectangle_to_world,
@@ -3651,7 +3650,7 @@ class SolverCoverageMap(SolverBase):
         # This angle is not beta_0. It takes values in (0,pi), and is the angle
         # with respect to e_hat in which to shoot the diffracted ray.
         # (num_tx, num_samples)
-        theta_shoot_dir = acos_diff(dot(ray_dir, e_hat_))
+        theta_shoot_dir = np.arccos(dot(ray_dir, e_hat_))
 
         # Discard paths for which the incident ray is aligned or perpendicular
         # to the edge
@@ -4164,11 +4163,11 @@ class SolverCoverageMap(SolverBase):
 
         # Compute phi_prime and phi
         # (num_tx, num_samples)
-        phi_prime = np.pi - (np.pi - acos_diff(-dot(s_t_prime_hat, t_0_hat))) * sign(
+        phi_prime = np.pi - (np.pi - np.arccos(-dot(s_t_prime_hat, t_0_hat))) * sign(
             -dot(s_t_prime_hat, n_0_hat)
         )
         # (num_tx, num_samples)
-        phi = np.pi - (np.pi - acos_diff(dot(s_t_hat, t_0_hat))) * sign(
+        phi = np.pi - (np.pi - np.arccos(dot(s_t_hat, t_0_hat))) * sign(
             dot(s_t_hat, n_0_hat)
         )
 

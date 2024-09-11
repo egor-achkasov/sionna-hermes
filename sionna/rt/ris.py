@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from .radio_device import RadioDevice
 from .scene_object import SceneObject
 from . import scene
-from .utils import rotate, normalize, outer, expand_to_rank
+from .utils import rotate, normalize, outer
 
 
 class CellGrid:
@@ -1510,8 +1510,8 @@ class RIS(RadioDevice, SceneObject):
         # Convert inputs to tensors
         sources = np.ndarray(sources, self._rdtype)
         targets = np.ndarray(targets, self._rdtype)
-        sources = expand_to_rank(sources, 2, 0)
-        targets = expand_to_rank(targets, 2, 0)
+        sources = sources[np.newaxis, np.newaxis]
+        targets = targets[np.newaxis, np.newaxis]
         shape = [self.num_modes, 3]
 
         # Ensure the desired shape [num_modes, 3]
@@ -1599,8 +1599,8 @@ class RIS(RadioDevice, SceneObject):
         # Convert inputs to tensors
         sources = np.asarray(sources, self._rdtype)
         targets = np.asarray(targets, self._rdtype)
-        sources = expand_to_rank(sources, 2, 0)
-        targets = expand_to_rank(targets, 2, 0)
+        sources = sources[np.newaxis, np.newaxis]
+        targets = targets[np.newaxis, np.newaxis]
         shape = [self.num_modes, 3]
 
         # Ensure the desired shape [num_modes, 3]

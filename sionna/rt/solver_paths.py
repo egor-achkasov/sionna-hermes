@@ -31,7 +31,6 @@ from .utils import (
     cross,
     sign,
     rotation_matrix,
-    acos_diff,
 )
 from .solver_base import SolverBase
 from .scattering_pattern import ScatteringPattern
@@ -3333,11 +3332,11 @@ class SolverPaths(SolverBase):
 
         # Compute phi_prime and phi
         # [num_targets, num_sources, max_num_paths]
-        phi_prime = np.pi - (np.pi - acos_diff(-dot(s_t_prime_hat, t_0_hat))) * sign(
+        phi_prime = np.pi - (np.pi - np.arccos(-dot(s_t_prime_hat, t_0_hat))) * sign(
             -dot(s_t_prime_hat, n_0_hat)
         )
         # [num_targets, num_sources, max_num_paths]
-        phi = np.pi - (np.pi - acos_diff(dot(s_t_hat, t_0_hat))) * sign(
+        phi = np.pi - (np.pi - np.arccos(dot(s_t_hat, t_0_hat))) * sign(
             dot(s_t_hat, n_0_hat)
         )
 
