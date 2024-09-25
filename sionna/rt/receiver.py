@@ -15,17 +15,6 @@ class Receiver(RadioDevice):
     r"""
     Class defining a receiver
 
-    The ``position`` and ``orientation`` properties can be assigned to a TensorFlow
-    variable or tensor. In the latter case, the tensor can be the output of a callable,
-    such as a Keras layer implementing a neural network. In the former case, it
-    can be set to a trainable variable:
-
-    .. code-block:: Python
-
-        rx = Transmitter(name="my_rx",
-                         position=tf.Variable([0, 0, 0], dtype=tf.float32),
-                         orientation=tf.Variable([0, 0, 0], dtype=tf.float32))
-
     Parameters
     ----------
     name : str
@@ -51,9 +40,9 @@ class Receiver(RadioDevice):
         Each RGB component must have a value within the range :math:`\in [0,1]`.
         Defaults to `[0.153, 0.682, 0.375]`.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
     """
 
     def __init__(

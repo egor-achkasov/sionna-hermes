@@ -48,7 +48,7 @@ class RadioDevice(Object):
         Defines the RGB (red, green, blue) ``color`` parameter for the device as displayed in the previewer and renderer.
         Each RGB component must have a value within the range :math:`\in [0,1]`.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
     """
@@ -80,7 +80,7 @@ class RadioDevice(Object):
     @property
     def position(self):
         """
-        [3], tf.float : Get/set the position
+        [3], np.float_ : Get/set the position
         """
         return self._position
 
@@ -98,7 +98,7 @@ class RadioDevice(Object):
     @property
     def orientation(self):
         """
-        [3], tf.float : Get/set the orientation
+        [3], np.float_ : Get/set the orientation
         """
         return self._orientation
 

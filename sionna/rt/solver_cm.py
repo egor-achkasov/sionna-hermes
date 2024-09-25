@@ -2810,7 +2810,7 @@ class SolverCoverageMap(SolverBase):
         ris_mi_ids = mi_to_np_ndarray(
             dr.reinterpret_array_v(mi.UInt32, ris_scene.shapes_dr()), np.int_
         )
-        ris_ind_offset -= np.min(ris_mi_ids).numpy() - 1
+        ris_ind_offset -= np.min(ris_mi_ids) - 1
 
         for depth in range(max_depth + 1):
 

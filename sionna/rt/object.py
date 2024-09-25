@@ -75,7 +75,7 @@ class Object(ABC):
     @abstractmethod
     def position(self):
         """
-        [3], tf.float : Get/set the position
+        [3], np.float_ : Get/set the position
         """
         pass
 
@@ -88,7 +88,7 @@ class Object(ABC):
     @abstractmethod
     def orientation(self):
         """
-        [3], tf.float : Get/set the orientation
+        [3], np.float_ : Get/set the orientation
         """
         pass
 

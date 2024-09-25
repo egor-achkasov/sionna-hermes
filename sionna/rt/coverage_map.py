@@ -216,28 +216,28 @@ class CoverageMap:
     @property
     def center(self):
         """
-        [3], tf.float : Get the center of the coverage map
+        [3], np.float_ : Get the center of the coverage map
         """
         return self._center
 
     @property
     def orientation(self):
         """
-        [3], tf.float : Get the orientation of the coverage map
+        [3], np.float_ : Get the orientation of the coverage map
         """
         return self._orientation
 
     @property
     def size(self):
         """
-        [2], tf.float : Get the size of the coverage map
+        [2], np.float_ : Get the size of the coverage map
         """
         return self._size
 
     @property
     def cell_size(self):
         """
-        [2], tf.float : Get the resolution of the coverage map, i.e., width
+        [2], np.float_ : Get the resolution of the coverage map, i.e., width
             (in the local X direction) and height (in the local Y direction) in
             of the cells of the coverage map
         """
@@ -246,7 +246,7 @@ class CoverageMap:
     @property
     def cell_centers(self):
         """
-        [num_cells_y, num_cells_x, 3], tf.float : Get the positions of the
+        [num_cells_y, num_cells_x, 3], np.float_ : Get the positions of the
         centers of the cells in the global coordinate system
         """
         return self._cell_pos
@@ -278,7 +278,7 @@ class CoverageMap:
 
         Output
         ------
-        : [num_tx, num_cells_y, num_cells_x], tf.float
+        : [num_tx, num_cells_y, num_cells_x], np.float_
             The coverage map as a tensor
         """
         return self._value
@@ -336,7 +336,7 @@ class CoverageMap:
 
         # Catch expected div-by-zero warnings
         with warnings.catch_warnings(record=True) as _:
-            cm = 10.0 * np.log10(self[tx].numpy())
+            cm = 10.0 * np.log10(self[tx])
 
         # Position of the transmitter
 
@@ -498,7 +498,6 @@ class CoverageMap:
         idx = np.where(np.logical_and(cm_db > min_gain_db, cm_db < max_gain_db))
 
         # Duplicate indices if requested batch_size > num_idx
-        # with tf.math.divide_no_nan function
         reps = 0. if idx.shape[0] == 0 else np.ceil(batch_size / idx.shape[0])
         reps = np.expand_dims(reps, axis=0)
         reps = np.concatenate((reps, np.ones_like(idx.shape[1:])), axis=0)

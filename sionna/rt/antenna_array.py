@@ -25,7 +25,7 @@ class AntennaArray:
     .. code-block:: Python
 
         array = AntennaArray(antenna=Antenna("tr38901", "V"),
-                             positions=tf.Variable([[0,0,0], [0, 1, 1]]))
+                             positions=np.asarray([[0,0,0], [0, 1, 1]]))
 
     Parameters
     ----------
@@ -40,7 +40,7 @@ class AntennaArray:
         adding the position of the :class:`~sionna.rt.Transmitter`
         or :class:`~sionna.rt.Receiver` using it.
 
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Data type used for all computations.
         Defaults to `np.complex_`.
     """
@@ -48,8 +48,6 @@ class AntennaArray:
     def __init__(self, antenna, positions, dtype=np.complex_):
         super().__init__()
 
-        if dtype not in (np.complex_, np.complex_):
-            raise ValueError("`dtype` must be np.complex_ or np.complex_`")
         self._rdtype = np.float_
         self.antenna = antenna
         self.positions = positions
@@ -170,7 +168,7 @@ class PlanarArray(AntennaArray):
         respectively.
         Defaults to `2`.
 
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Datatype used for all computations.
         Defaults to `np.complex_`.
 
@@ -197,9 +195,6 @@ class PlanarArray(AntennaArray):
         polarization_model=2,
         dtype=np.complex_,
     ):
-
-        if dtype not in (np.complex_, np.complex_):
-            raise ValueError("`dtype` must be np.complex_ or np.complex_`")
 
         # Create list of antennas
         array_size = num_rows * num_cols

@@ -40,7 +40,7 @@ class SolverBase:
         Another solver from which to re-use some structures to avoid useless
         compute and memory use
 
-    dtype : np.complex_ | tf.complex128
+    dtype : np.dtype
         Datatype for all computations, inputs, and outputs.
         Defaults to `np.complex_`.
     """
@@ -83,10 +83,6 @@ class SolverBase:
         #     Map Mitsuba shape indices to indices that can be used to access
         #    _prim_offsets
 
-        assert dtype in (
-            np.complex_,
-            np.complex_8,
-        ), "`dtype` must be np.complex_ or tf.complex128`"
         self._dtype = dtype
         self._rdtype = np.float_
 
@@ -142,7 +138,7 @@ class SolverBase:
         # This list tracks the indices offsets for accessing the triangles
         # making each shape.
         prim_offsets = []
-        objects_id = dr.reinterpret_array_v(mi.UInt32, mi_scene.shapes_dr()).tf()
+        objects_id = dr.reinterpret_array_v(mi.UInt32, mi_scene.shapes_dr())
         for i, s in zip(objects_id, mi_scene.shapes()):
             if not isinstance(s, mi.Mesh):
                 raise ValueError("Only triangle meshes are supported")
@@ -178,7 +174,6 @@ class SolverBase:
             vertex_coords = np.reshape(vertex_coords, [s.face_count(), 3, 3])
             # Update the `prims` tensor
             sl = np.arange(prim_offset, prim_offset + s.face_count(), dtype=np.int_)
-            sl = np.expand_dims(sl, axis=1)
             prims[sl] = vertex_coords
             # Compute the normals to the triangles
             # Coordinate of the first vertices of every triangle making the
@@ -214,7 +209,7 @@ class SolverBase:
         ####################################################
 
         # [num_objects]
-        self._prim_offsets = mi.Int32(prim_offsets.numpy())
+        self._prim_offsets = mi.Int32(prim_offsets)
         dest = dr.reinterpret_array_v(mi.UInt32, mi_scene.shapes_dr())
         if dr.width(dest) == 0:
             self._shape_indices = mi.Int32([])
@@ -283,7 +278,7 @@ class SolverBase:
     @property
     def prim_offsets(self):
         """
-        [num_objects], tf.int : Indices offsets for accessing the triangles
+        [num_objects], np.int_ : Indices offsets for accessing the triangles
         each shape in `primitives`
         """
         return self._prim_offsets
@@ -291,7 +286,7 @@ class SolverBase:
     @property
     def shape_indices(self):
         """
-        [num_objects], tf.int :  Map object ids to indices that can be used to
+        [num_objects], np.int_ :  Map object ids to indices that can be used to
         access `prim_offsets`
         """
         return self._shape_indices
@@ -327,14 +322,14 @@ class SolverBase:
     @property
     def primitives_2_wedges(self):
         """
-        [num_primitives, 3], tf.int : Maps primitives to their wedges
+        [num_primitives, 3], np.int_ : Maps primitives to their wedges
         """
         return self._primitives_2_wedges
 
     @property
     def wedges_objects(self):
         """
-        [num_wedges, 2], tf.int : Indices of the two objects making the
+        [num_wedges, 2], np.int_ : Indices of the two objects making the
         wedge (the two sides of the wedge could belong to different objects)
         """
         return self._wedges_objects
@@ -357,7 +352,7 @@ class SolverBase:
 
         Output
         -------
-        relative_permittivity : [num_shape], tf.complex
+        relative_permittivity : [num_shape], np.complex_
             Tensor containing the complex relative permittivities of all shapes
 
         scattering_coefficient : [num_shape], np.float_
@@ -380,7 +375,7 @@ class SolverBase:
             Tensor containing the velocity vectors of all shapes
         """
 
-        objects_id = dr.reinterpret_array_v(mi.UInt32, self._mi_scene.shapes_dr()).tf()
+        objects_id = dr.reinterpret_array_v(mi.UInt32, self._mi_scene.shapes_dr())
 
         # Compute the size of the parameter tensors for all object_ids
         # We start indexing at 1 (not 0) and need to add the number of
@@ -549,7 +544,7 @@ class SolverBase:
         all_edges_undirected = np.concatenate([v0, v1, v1, v2, v2, v0], axis=1)
         # [num_edges = num_prim*3, 2, 3]
         all_edges_undirected = np.reshape(
-            all_edges_undirected, shape=(3 * v0.shape[0], 2, 3)
+            all_edges_undirected, (3 * v0.shape[0], 2, 3)
         )
         # Edges are oriented such that identical edges have same orientation
         # [num_edges, 2, 3]
@@ -565,11 +560,11 @@ class SolverBase:
         # Get unique edges, i.e., wihout duplicates
         # unique_edges : [num_unique_edges, 2, 3]
         # indices_of_unique : [num_edges], index of the edge in ``unique_edges``
-        unique_edges, indices_of_unique = np.unique(x=all_edges, axis=[0])
+        unique_edges, indices_of_unique = np.unique(all_edges, axis=[0], return_inverse=True)
 
         # Number of occurences of every unique edge
         # [num_unique_edges]
-        _, _, unique_indices_count = np.unique_with_counts(indices_of_unique)
+        _, unique_indices_count = np.unique(indices_of_unique, return_counts=True)
 
         # Flag indicating which edges shared by exactly one or two primitives,
         # i.e., edges or wedges
@@ -589,7 +584,7 @@ class SolverBase:
         default = np.full((unique_edges.shape[0],), fill_value=-1)
         # [num_unique_edges]
         default[indices_of_unique] = seq
-        all_edges_index_1 = default
+        all_edges_index_1 = default.copy()
         # Next, list the second primitive that the wedge is connected to.
         # -1 is used for edges defined by a single primitive (screens)
         # [num_edges]
@@ -597,7 +592,7 @@ class SolverBase:
         missing[all_edges_index_1] = False
         # [num_unique_edges]
         default[indices_of_unique[missing]] = seq[missing]
-        all_edges_index_2 = default
+        all_edges_index_2 = default.copy()
         # Flag set to True if an edge is not a wedge, i.e., is attached to only
         # one primitive. This is the case for unique edges for which
         # ``all_edges_index_2`` is not set to -1
@@ -620,7 +615,7 @@ class SolverBase:
         #   edge belongs.
         # Edge vertices
         # [num_unique_edges, 2, 3]
-        vs = np.take(all_edges, all_edges_index_1)
+        vs = all_edges[all_edges_index_1]
         # [num_unique_edges, 3]
         v1 = vs[:, 0]
         v2 = vs[:, 1]
@@ -629,8 +624,8 @@ class SolverBase:
         e = v2 - v1
         # Vertex on the 0 and n faces
         # [num_unique_edges, 3]
-        vf1 = np.take(remaining_vertex, all_edges_index_1)
-        vf2 = np.take(remaining_vertex, all_edges_index_2)
+        vf1 = remaining_vertex[all_edges_index_1]
+        vf2 = remaining_vertex[all_edges_index_2]
         # [num_unique_edges, 3]
         u_1, _ = normalize(vf1 - v1)
         u_2, _ = normalize(vf2 - v1)
@@ -685,7 +680,7 @@ class SolverBase:
 
         # Extract only the selected lanes
         # [num_selected_edges]
-        selected_indices = np.where(is_selected)[:, 0]
+        selected_indices = np.where(is_selected)
         # [num_selected_edges, 2, 3]
         selected_edges = unique_edges[is_selected]
         # [num_selected_edges, 3]

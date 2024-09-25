@@ -7,17 +7,17 @@
 
 __version__ = '0.18.0'
 
-from . import utils
-from .constants import *
-from . import nr
-from . import fec
-from . import mapping
-from . import ofdm
-from . import mimo
-from . import channel
-from . import signal
+#from . import utils
+#from .constants import *
+#from . import nr
+#from . import fec
+#from . import mapping
+#from . import ofdm
+#from . import mimo
+#from . import channel
+#from . import signal
 from . import rt
-from .config import *
-
-# Instantiate global configuration object
-config = Config()
+#from .config import *
+#
+## Instantiate global configuration object
+#config = Config()

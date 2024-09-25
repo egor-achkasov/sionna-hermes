@@ -15,17 +15,6 @@ class Transmitter(RadioDevice):
     r"""
     Class defining a transmitter
 
-    The ``position`` and ``orientation`` properties can be assigned to a TensorFlow
-    variable or tensor. In the latter case, the tensor can be the output of a callable,
-    such as a Keras layer implementing a neural network. In the former case, it
-    can be set to a trainable variable:
-
-    .. code-block:: Python
-
-        tx = Transmitter(name="my_tx",
-                         position=tf.Variable([0, 0, 0], dtype=tf.float32),
-                         orientation=tf.Variable([0, 0, 0], dtype=tf.float32))
-
     Parameters
     ----------
     name : str

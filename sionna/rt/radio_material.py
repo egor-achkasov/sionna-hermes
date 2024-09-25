@@ -37,16 +37,6 @@ class RadioMaterial:
     The callback should return `-1` for both the relative permittivity and
     the conductivity if these are not defined for the given carrier frequency.
 
-    The material properties can be assigned to a TensorFlow variable or
-    tensor. In the latter case, the tensor could be the output of a callable,
-    such as a Keras layer implementing a neural network. In the former case, it
-    could be set to a trainable variable:
-
-    .. code-block:: Python
-
-        mat = RadioMaterial("my_mat")
-        mat.conductivity = tf.Variable(0.0, dtype=tf.float32)
-
     Parameters
     -----------
     name : str
@@ -93,7 +83,7 @@ class RadioMaterial:
         to ``relative_permittivity`` and ``conductivity``.
         Defaults to `None`.
 
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Datatype.
         Defaults to `np.complex_`.
     """
@@ -154,7 +144,7 @@ class RadioMaterial:
     @property
     def relative_permittivity(self):
         r"""
-        tf.float : Get/set the relative permittivity
+        np.float_ : Get/set the relative permittivity
             :math:`\varepsilon_r` :eq:`eta`
         """
         return self._relative_permittivity
@@ -173,7 +163,7 @@ class RadioMaterial:
     @property
     def relative_permeability(self):
         r"""
-        tf.float (read-only) : Relative permeability
+        np.float_ (read-only) : Relative permeability
             :math:`\mu_r` :eq:`mu`.
             Defaults to 1.
         """
@@ -182,7 +172,7 @@ class RadioMaterial:
     @property
     def conductivity(self):
         r"""
-        tf.float: Get/set the conductivity
+        np.float_: Get/set the conductivity
             :math:`\sigma` [S/m] :eq:`eta`
         """
         return self._conductivity
@@ -201,7 +191,7 @@ class RadioMaterial:
     @property
     def scattering_coefficient(self):
         r"""
-        tf.float: Get/set the scattering coefficient
+        np.float_: Get/set the scattering coefficient
             :math:`S\in[0,1]` :eq:`scattering_coefficient`.
         """
         return self._scattering_coefficient
@@ -220,7 +210,7 @@ class RadioMaterial:
     @property
     def xpd_coefficient(self):
         r"""
-        tf.float: Get/set the cross-polarization discrimination coefficient
+        np.float_: Get/set the cross-polarization discrimination coefficient
             :math:`K_x\in[0,1]` :eq:`xpd`.
         """
         return self._xpd_coefficient
@@ -252,7 +242,7 @@ class RadioMaterial:
     @property
     def complex_relative_permittivity(self):
         r"""
-        tf.complex (read-only) : Complex relative permittivity
+        np.complex_ (read-only) : Complex relative permittivity
             :math:`\eta` :eq:`eta`
         """
         epsilon_0 = DIELECTRIC_PERMITTIVITY_VACUUM
@@ -303,11 +293,11 @@ class RadioMaterial:
     @property
     def using_objects(self):
         """
-        [num_using_objects], tf.int : Identifiers of the objects using this
+        [num_using_objects], np.int_ : Identifiers of the objects using this
         material
         """
-        tf_objects_using = np.asarray(tuple(self._objects_using), np.int_)
-        return tf_objects_using
+        objects_using = np.asarray(tuple(self._objects_using), np.int_)
+        return objects_using
 
     ##############################################
     # Internal methods.

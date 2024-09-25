@@ -46,7 +46,7 @@ class Antenna:
 
     dtype : np.dtype
         Datatype used for all computations.
-        Defaults to `tf.complex_`.
+        Defaults to `np.complex_`.
 
     Example
     -------
@@ -251,8 +251,8 @@ def visualize(pattern):
     # Horizontal cut
     phi = np.linspace(-np.pi, np.pi, 1000)
     c_theta, c_phi = pattern(np.pi / 2 * np.ones_like(phi), phi)
-    c_theta = c_theta.numpy()
-    c_phi = c_phi.numpy()
+    c_theta = c_theta
+    c_phi = c_phi
     g = np.abs(c_theta) ** 2 + np.abs(c_phi) ** 2
     g = np.where(g == 0, 1e-12, g)
     g_db = 10 * np.log10(g)

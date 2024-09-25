@@ -102,7 +102,7 @@ class Paths:
         self._phi_t = np.zeros([num_targets, num_sources, 0], np.float_)
         self._phi_r = np.zeros([num_targets, num_sources, 0], np.float_)
         self._mask = np.full([num_targets, num_sources, 0], False)
-        self._targets_sources_mask = np.fill([num_targets, num_sources, 0], False)
+        self._targets_sources_mask = np.full([num_targets, num_sources, 0], False)
         self._vertices = np.zeros([0, num_targets, num_sources, 0, 3], np.float_)
         self._objects = np.full([0, num_targets, num_sources, 0], -1)
         self._doppler = np.zeros([num_targets, num_sources, 0], np.float_)
@@ -179,9 +179,9 @@ class Paths:
         r = ""
         offset = 0
         for rx in range(vertices.shape[1]):
-            tgt = targets[rx].numpy()
+            tgt = targets[rx]
             for tx in range(vertices.shape[2]):
-                src = sources[tx].numpy()
+                src = sources[tx]
                 for p in range(vertices.shape[3]):
 
                     # If the path is masked, skip it

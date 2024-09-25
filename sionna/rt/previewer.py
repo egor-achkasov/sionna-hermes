@@ -140,10 +140,10 @@ class InteractiveDisplay:
         scene = self._scene
         sc, tx_positions, rx_positions, _, _ = scene_scale(scene)
         transmitter_colors = [
-            transmitter.color.numpy() for transmitter in scene.transmitters.values()
+            transmitter.color for transmitter in scene.transmitters.values()
         ]
         receiver_colors = [
-            receiver.color.numpy() for receiver in scene.receivers.values()
+            receiver.color for receiver in scene.receivers.values()
         ]
 
         # Radio emitters, shown as points
@@ -187,7 +187,7 @@ class InteractiveDisplay:
                     mat = p3s.MeshLambertMaterial(color=color)
                     mesh = p3s.Mesh(geo, mat)
                     mesh.position = tuple(endpoint)
-                    angles = rd.orientation.numpy()
+                    angles = rd.orientation
                     mesh.rotateZ(angles[0] - np.pi / 2)
                     mesh.rotateY(angles[2])
                     mesh.rotateX(-angles[1])
@@ -225,7 +225,7 @@ class InteractiveDisplay:
         vertices, faces, albedos = [], [], []
         f_offset = 0
         for i, s in enumerate(shapes):
-            null_transmission = s.bsdf().eval_null_transmission(si).numpy()
+            null_transmission = s.bsdf().eval_null_transmission(si)
             if np.min(null_transmission) > 0.99:
                 # The BSDF for this shape was probably set to `null`, do not
                 # include it in the scene preview.
@@ -233,12 +233,12 @@ class InteractiveDisplay:
 
             n_vertices = s.vertex_count()
             v = s.vertex_position(dr.arange(mi.UInt32, n_vertices))
-            vertices.append(v.numpy())
+            vertices.append(v)
             f = s.face_indices(dr.arange(mi.UInt32, s.face_count()))
-            faces.append(f.numpy() + f_offset)
+            faces.append(f + f_offset)
             f_offset += n_vertices
 
-            albedo = s.bsdf().eval_diffuse_reflectance(si).numpy()
+            albedo = s.bsdf().eval_diffuse_reflectance(si)
             if not np.any(albedo > 0.0):
                 if palette is None:
                     palette = matplotlib.colormaps.get_cmap("Pastel1_r")
@@ -264,9 +264,9 @@ class InteractiveDisplay:
         """
         to_world = coverage_map.to_world()
         # coverage_map = resample_to_corners(
-        #     coverage_map[tx, :, :].numpy()
+        #     coverage_map[tx, :, :]
         # )
-        coverage_map = coverage_map[tx, :, :].numpy()
+        coverage_map = coverage_map[tx, :, :]
 
         # Create a rectangle from two triangles
         p00 = to_world.transform_affine([-1, -1, 0])
@@ -322,7 +322,7 @@ class InteractiveDisplay:
             to_world = mitsuba_rectangle_to_world(
                 ris.position, orientation, ris.size, ris=True
             )
-            color = ris.color.numpy()
+            color = ris.color
 
             # Create a rectangle from two triangles
             p00 = to_world.transform_affine([-1, -1, 0])

@@ -78,7 +78,7 @@ class PathsTmpData:
 
         # [num_targets, num_sources, max_num_paths, 2, 2] or
         # [num_rx, rx_array_size, num_tx, tx_array_size, max_num_paths, 2, 2],
-        # tf.complex
+        # np.complex_
         #     Channel transition matrix
         # These are initialized to emtpy tensors to handle cases where no
         # paths are found
@@ -213,7 +213,7 @@ class PathsTmpData:
 
 class SolverPaths(SolverBase):
     # pylint: disable=line-too-long
-    r"""SolverPaths(scene, solver=None, dtype=tf.complex64)
+    r"""SolverPaths(scene, solver=None, dtype=np.complex_)
 
     Generates propagation paths consisting of the line-of-sight (LoS) paths,
     specular, and diffracted paths for the currently loaded scene.
@@ -301,9 +301,9 @@ class SolverPaths(SolverBase):
         Another solver from which to re-use some structures to avoid useless
         compute and memory use
 
-    dtype : tf.complex64 | tf.complex128
+    dtype : np.dtype
         Datatype for all computations, inputs, and outputs.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Input
     ------
@@ -1214,7 +1214,7 @@ class SolverPaths(SolverBase):
             candidates = np.pad(
                 candidates,
                 [[0, 0], [0, max_depth - depth]],
-                mode="CONSTANT",
+                mode="constant",
                 constant_values=-1,
             )
 
@@ -1369,7 +1369,7 @@ class SolverPaths(SolverBase):
                     active,
                 )
                 offsets = dr.gather(mi.Int32, self._prim_offsets, shape_i, active)
-                prims_i = dr.select(active, offsets + si.prim_index, -1)
+                prims_i = np.where(active, (offsets + si.prim_index).numpy().astype(np.int32), -1)
                 candidates.append(prims_i)
 
                 # Record the hit point
@@ -1385,8 +1385,8 @@ class SolverPaths(SolverBase):
         if len(candidates) > 0:
             # max_depth > 0 or empty scene
             los_primitives = np.reshape(np.asarray(candidates[0], np.int_), [-1])
-            los_primitives, _ = np.unique(los_primitives)
-            los_primitives = los_primitives[np.where(los_primitives != -1)[:, 0]]
+            los_primitives = np.unique(los_primitives)
+            los_primitives = los_primitives[np.where(los_primitives != -1)[0]]
         else:
             # max_depth == 0
             los_primitives = None
@@ -1397,9 +1397,7 @@ class SolverPaths(SolverBase):
         if scattering or reflection:
             # Stack all found interactions along the depth dimension
             # [max_depth, num_samples]
-            candidates = np.stack(
-                [mi_to_np_ndarray(r, np.int_) for r in candidates], axis=0
-            )
+            candidates = np.stack(candidates, axis=0)
 
         if reflection:
             # [max_depth, num_samples]
@@ -1410,7 +1408,7 @@ class SolverPaths(SolverBase):
             # ()
             max_depth_ref = np.where(
                 np.any(useless_step),
-                np.argmax(np.asarray(useless_step, np.int_), output_type=np.int_),
+                np.argmax(np.asarray(useless_step, np.int_)),
                 max_depth,
             )
             # [max_depth, num_samples]
@@ -1475,7 +1473,7 @@ class SolverPaths(SolverBase):
             max_depth = 0
 
         # Remove duplicates
-        candidates_ref = np.unique(x=candidates_ref, axis=[1])
+        candidates_ref = np.unique(candidates_ref, axis=[1])
 
         # Add line-of-sight to list of candidates for reflection if
         # required
@@ -1532,8 +1530,7 @@ class SolverPaths(SolverBase):
         Starting from the sources, mirror each point against the
         given candidate primitive. At this stage, we do not carry
         any verification about the visibility of the ray.
-        Loop through the max_depth interactions. All candidate paths are
-        processed in parallel.
+        Loop through the max_depth interactions.
 
         Input
         ------
@@ -1567,21 +1564,15 @@ class SolverPaths(SolverBase):
         # Number of sources and number of receivers
         num_sources = len(sources)
 
-        # Sturctures are filled by the following loop
-        # Indicates if a path is discarded
-        # [num_samples]
-        valid = np.full([num_samples], True)
         # Coordinates of the first vertex of potentially hitted triangles
         # [max_depth, num_sources, num_samples, 3]
         tri_p0 = np.zeros([max_depth, num_sources, num_samples, 3], dtype=np.float_)
         # Coordinates of the mirrored vertices
         # [max_depth, num_sources, num_samples, 3]
-        mirrored_vertices = np.zeros(
-            [max_depth, num_sources, num_samples, 3], dtype=np.float_
-        )
+        mirrored_vertices = np.zeros_like(tri_p0)
         # Normals to the potentially hitted triangles
         # [max_depth, num_sources, num_samples, 3]
-        normals = np.zeros([max_depth, num_sources, num_samples, 3], dtype=np.float_)
+        normals = np.zeros_like(tri_p0)
 
         # Position of the last interaction.
         # It is initialized with the sources position
@@ -1589,91 +1580,81 @@ class SolverPaths(SolverBase):
         # [num_sources, 1, xyz : 1]
         current = np.expand_dims(sources, axis=1)
         current = np.tile(current, [1, num_samples, 1])
-        # Index of the last hit primitive
-        prev_prim_idx = np.full([num_samples], -1)
-        if max_depth > 0:
-            for depth in range(max_depth):
 
-                # Primitive indices with which paths interact at this depth
-                # [num_samples]
-                prim_idx = candidates[depth]
+        if max_depth == 0:
+            return mirrored_vertices, tri_p0, normals
 
-                # Flag indicating which paths are still active, i.e., should be
-                # tested.
-                # Paths that are shorter than depth are marked as inactive
-                # [num_samples]
-                active = np.not_equal(prim_idx, -1)
+        for depth in range(max_depth):
+            # Primitive indices with which paths interact at this depth
+            # [num_samples]
+            prim_idx = candidates[depth]
 
-                # Break the loop if no active paths
-                # Could happen with empty scenes, where we have only LoS
-                if np.logical_not(np.any(active)):
-                    break
+            # Flag indicating which paths are still active, i.e., should be
+            # tested.
+            # Paths that are shorter than depth are marked as inactive
+            # [num_samples]
+            active = np.not_equal(prim_idx, -1)
 
-                # Eliminate paths that go through the same prim twice in a row
-                # [num_samples]
-                valid = np.logical_and(
-                    valid, np.logical_or(~active, np.not_equal(prim_idx, prev_prim_idx))
-                )
+            # Break the loop if no active paths
+            # Could happen with empty scenes, where we have only LoS
+            if not np.any(active):
+                break
 
-                # On CPU, indexing with -1 does not work. Hence we replace -1
-                # by 0.
-                # This makes no difference on the resulting paths as such paths
-                # are not flagged as active.
-                # valid_prim_idx = prim_idx
-                valid_prim_idx = np.where(prim_idx == -1, 0, prim_idx)
+            # On CPU, indexing with -1 does not work. Hence we replace -1
+            # by 0.
+            # This makes no difference on the resulting paths as such paths
+            # are not flagged as active.
+            # valid_prim_idx = prim_idx
+            valid_prim_idx = np.where(prim_idx == -1, 0, prim_idx)
 
-                # Mirroring of the current point with respected to the
-                # potentially hitted triangle.
-                # We need the coordinate of the first vertex of the potentially
-                # hitted triangle.
-                # To get this, we build the indexing tensor to gather only the
-                # coordinate of the first index
-                # [[num_samples, 1]]
-                p0_index = np.expand_dims(valid_prim_idx, axis=1)
-                p0_index = np.pad(
-                    p0_index, [[0, 0], [0, 1]], mode="CONSTANT", constant_values=0
-                )  # First vertex
-                # [num_samples, xyz : 3]
-                p0 = self._primitives[p0_index]
-                # Expand rank and tile to broadcast with the number of
-                # transmitters
-                # [num_sources, num_samples, xyz : 3]
-                p0 = np.expand_dims(p0, axis=0)
-                p0 = np.tile(p0, [num_sources, 1, 1])
-                # Gather normals to potentially intersected triangles
-                # [num_samples, xyz : 3]
-                normal = self._normals[valid_prim_idx]
-                # Expand rank and tile to broadcast with the number of
-                # transmitters
-                # [1, num_samples, xyz : 3]
-                normal = np.expand_dims(normal, axis=0)
-                normal = np.tile(normal, [num_sources, 1, 1])
+            # Mirroring of the current point with respected to the
+            # potentially hitted triangle.
+            # We need the coordinate of the first vertex of the potentially
+            # hitted triangle.
+            # To get this, we build the indexing tensor to gather only the
+            # coordinate of the first index
+            # [[num_samples, 1]]
+            # hermespy dev: idk what was supposed to happen here before
+            # so let's just pick the valid triangles
+            # [num_samples, xyz : 3]
+            p0 = self._primitives[valid_prim_idx, 0]
+            # Expand rank and tile to broadcast with the number of
+            # transmitters
+            # [num_sources, num_samples, xyz : 3]
+            p0 = np.expand_dims(p0, axis=0)
+            p0 = np.tile(p0, [num_sources, 1, 1])
+            # Gather normals to potentially intersected triangles
+            # [num_samples, xyz : 3]
+            normal = self._normals[valid_prim_idx]
+            # Expand rank and tile to broadcast with the number of
+            # transmitters
+            # [1, num_samples, xyz : 3]
+            normal = np.expand_dims(normal, axis=0)
+            normal = np.tile(normal, [num_sources, 1, 1])
 
-                # Distance between the current intersection point (or sources)
-                # and the plane the triangle is part of.
-                # Note: `dist` is signed to compensate for backfacing normals
-                # whenn needed.
-                # [num_sources, num_samples, 1]
-                dist = dot(current, normal, keepdim=True) - dot(
-                    p0, normal, keepdim=True
-                )
-                # Coordinates of the mirrored point
-                # [num_sources, num_samples, xyz : 3]
-                mirrored = current - 2.0 * dist * normal
+            # Distance between the current intersection point (or sources)
+            # and the plane the triangle is part of.
+            # Note: `dist` is signed to compensate for backfacing normals
+            # whenn needed.
+            # [num_sources, num_samples, 1]
+            dist = dot(current, normal, keepdim=True) - dot(
+                p0, normal, keepdim=True
+            )
+            # Coordinates of the mirrored point
+            # [num_sources, num_samples, xyz : 3]
+            mirrored = current - 2.0 * dist * normal
 
-                # Store these results
-                # [max_depth, num_sources, num_samples, 3]
-                mirrored_vertices[[[depth]]] = [mirrored]
-                # [max_depth, num_sources, num_samples, 3]
-                tri_p0[[[depth]]] = [p0]
-                # [max_depth, num_sources, num_samples, 3]
-                normals[[[depth]]] = [normal]
+            # Store these results
+            # [max_depth, num_sources, num_samples, 3]
+            mirrored_vertices[depth] = mirrored
+            # [max_depth, num_sources, num_samples, 3]
+            tri_p0[depth] = p0
+            # [max_depth, num_sources, num_samples, 3]
+            normals[depth] = normal
 
-                # Prepare for the next interaction
-                # [num_sources, num_samples, xyz : 3]
-                current = mirrored
-                # [num_samples]
-                prev_prim_idx = prim_idx
+            # Prepare for the next interaction
+            # [num_sources, num_samples, xyz : 3]
+            current = mirrored
 
         return mirrored_vertices, tri_p0, normals
 
@@ -1827,7 +1808,7 @@ class SolverPaths(SolverBase):
         # (num_samples, 2)
         p2_index = np.expand_dims(valid_prim_idx, axis=1)
         p2_index = np.pad(
-            p2_index, [[0, 0], [0, 1]], mode="CONSTANT", constant_values=2
+            p2_index, [[0, 0], [0, 1]], mode="constant", constant_values=2
         )  # Third vertex
         # [num_samples, xyz : 3]
         p2 = self._primitives[p2_index[:, 0], p2_index[:, 1]]
@@ -2131,22 +2112,23 @@ class SolverPaths(SolverBase):
         # [num_targets, num_sources, num_samples]
         path_indices = np.cumsum(np.asarray(keep, np.int_), axis=-1)
         # [num_valid]
-        path_indices = path_indices[gather_indices[:, 0], gather_indices[:, 1], gather_indices[:, 2]] - 1
+        path_indices = path_indices[gather_indices] - 1
         # [3, num_valid]
         scatter_indices = np.transpose(gather_indices, [1, 0])
         if not np.size(scatter_indices) == 0:
             # [3, num_valid]
-            scatter_indices[[[2]]] = [path_indices]
+            scatter_indices[2] = path_indices
         # [num_valid, 3]
         scatter_indices = np.transpose(scatter_indices, [1, 0])
 
         # Mask of valid paths
         # [num_targets, num_sources, max_num_paths]
-        mask = np.full([num_targets, num_sources, max_num_paths], False)
-        # [num_keep_paths]
-        mask_ = valid[gather_indices[:, 0], gather_indices[:, 1], gather_indices[:, 2]]
-        # [num_targets, num_sources, max_num_paths]
-        np.add.at(mask, scatter_indices, mask_)
+        #mask = np.full([num_targets, num_sources, max_num_paths], False)
+        ## [num_keep_paths]
+        #mask_ = valid[gather_indices]
+        ## [num_targets, num_sources, max_num_paths]
+        #np.add.at(mask, scatter_indices, mask_)
+        mask = valid.copy()
 
         # Locations of the interactions
         # [max_depth, num_targets, num_sources, max_num_paths, 3]
@@ -2163,50 +2145,49 @@ class SolverPaths(SolverBase):
             [max_depth, num_targets, num_sources, max_num_paths], -1
         )
 
-        if max_depth > 0:
+        for depth in range(int(max_depth)):
+            # Indices for storing the valid vertices/normals/primitives for
+            # this depth
+            # hermspy dev:
+            # [num_samples, 4 (that is depth, ?, ?, ?)]
+            scatter_indices_ = np.pad(
+                scatter_indices,
+                [[0, 0], [1, 0]],
+                mode="constant",
+                constant_values=depth,
+            )
 
-            for depth in range(int(max_depth)):
+            # Loaction of the interactions
+            # Extract only the valid paths
+            # [num_targets, num_sources, num_samples, 3]
+            vertices_ = path_vertices[depth]
+            # [total_num_valid_paths, 3]
+            vertices_ = vertices_[gather_indices]
+            # Store the valid intersection points
+            # [max_depth, num_targets, num_sources, max_num_paths, 3]
+            valid_vertices[scatter_indices_] = vertices_
 
-                # Indices for storing the valid vertices/normals/primitives for
-                # this depth
-                scatter_indices_ = np.pad(
-                    scatter_indices,
-                    [[0, 0], [1, 0]],
-                    mode="CONSTANT",
-                    constant_values=depth,
-                )
+            # Normals at the interactions
+            # Extract only the valid paths
+            # [num_targets, num_sources, num_samples, 3]
+            normals_ = np.take(path_normals, depth, axis=0)
+            # [total_num_valid_paths, 3]
+            normals_ = np.take_along_axis(normals_, gather_indices)
+            # Store the valid normals
+            # [max_depth, num_targets, num_sources, max_num_paths, 3]
+            valid_normals = np.put_along_axis(valid_normals, scatter_indices_, normals_, axis=0)
 
-                # Loaction of the interactions
-                # Extract only the valid paths
-                # [num_targets, num_sources, num_samples, 3]
-                vertices_ = path_vertices[depth]
-                # [total_num_valid_paths, 3]
-                vertices_ = vertices_[gather_indices[:, 0], gather_indices[:, 1], gather_indices[:, 2]]
-                # Store the valid intersection points
-                # [max_depth, num_targets, num_sources, max_num_paths, 3]
-                valid_vertices[scatter_indices_] = vertices_
-
-                # Normals at the interactions
-                # Extract only the valid paths
-                # [num_targets, num_sources, num_samples, 3]
-                normals_ = np.take(path_normals, depth, axis=0)
-                # [total_num_valid_paths, 3]
-                normals_ = np.take_along_axis(normals_, gather_indices)
-                # Store the valid normals
-                # [max_depth, num_targets, num_sources, max_num_paths, 3]
-                valid_normals = np.put_along_axis(valid_normals, scatter_indices_, normals_, axis=0)
-
-                # Intersected primitives
-                # Extract only the valid paths
-                # [num_samples]
-                primitives_ = np.take_along_axis(candidates, depth, axis=0)
-                # [total_num_valid_paths]
-                primitives_ = np.take_along_axis(primitives_, gather_indices[:, 2])
-                # Store the valid primitives]
-                # [max_depth, num_targets, num_sources, max_num_paths]
-                valid_primitives = np.put_along_axis(
-                    valid_primitives, scatter_indices_, primitives_
-                )
+            # Intersected primitives
+            # Extract only the valid paths
+            # [num_samples]
+            primitives_ = np.take_along_axis(candidates, depth, axis=0)
+            # [total_num_valid_paths]
+            primitives_ = np.take_along_axis(primitives_, gather_indices[:, 2])
+            # Store the valid primitives]
+            # [max_depth, num_targets, num_sources, max_num_paths]
+            valid_primitives = np.put_along_axis(
+                valid_primitives, scatter_indices_, primitives_
+            )
 
         # Add a dummy entry to primitives_2_objects with value -1 for invalid
         # reflection.
@@ -2283,8 +2264,7 @@ class SolverPaths(SolverBase):
         # Starting from the sources, mirror each point against the
         # given candidate primitive. At this stage, we do not carry
         # any verification about the visibility of the ray.
-        # Loop through the max_depth interactions. All candidate paths are
-        # processed in parallel.
+        # Loop through the max_depth interactions.
         #
         # mirrored_vertices : [max_depth, num_sources, num_samples, 3], np.float_
         #     Mirrored points coordinates
@@ -2498,7 +2478,7 @@ class SolverPaths(SolverBase):
 
         Input
         ------
-        relative_permittivity : [num_shape], tf.complex
+        relative_permittivity : [num_shape], np.complex_
             Tensor containing the relative permittivity of all shapes
 
         scattering_coefficient : [num_shape], np.float_
@@ -2515,7 +2495,7 @@ class SolverPaths(SolverBase):
 
         Output
         -------
-        mat_t : [num_targets, num_sources, max_num_paths, 2, 2], tf.complex
+        mat_t : [num_targets, num_sources, max_num_paths, 2, 2], np.complex_
                 Specular transition matrix for every path.
         """
 
@@ -3190,7 +3170,7 @@ class SolverPaths(SolverBase):
 
         Input
         ------
-        relative_permittivity : [num_shape], tf.complex
+        relative_permittivity : [num_shape], np.complex_
             Tensor containing the complex relative permittivity of all shape
             in the scene
 
@@ -3622,7 +3602,7 @@ class SolverPaths(SolverBase):
                 scatter_indices_ = np.pad(
                     scatter_indices,
                     [[0, 0], [1, 0]],
-                    mode="CONSTANT",
+                    mode="constant",
                     constant_values=depth,
                 )
 
@@ -4705,7 +4685,7 @@ class SolverPaths(SolverBase):
             Cross-polarization discrimination coefficient :math:`K_x\in[0,1]` as
             defined in :eq:`xpd`.
 
-        etas : [num_shapes], tf.complex
+        etas : [num_shapes], np.complex_
             Complex relative permittivity :math:`\eta` :eq:`eta`
 
         alpha_r : [num_shapes], np.int_

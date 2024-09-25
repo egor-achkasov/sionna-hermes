@@ -28,7 +28,7 @@ def rotation_matrix(angles):
 
     Output
     -------
-    : (..., 3, 3), tf.float_
+    : (..., 3, 3), np.float_
         Rotation matrices
     """
 
@@ -573,10 +573,10 @@ def paths_to_segments(paths):
         Endpoints of the segments making the paths.
     """
 
-    vertices = paths.vertices.numpy()
-    objects = paths.objects.numpy()
+    vertices = paths.vertices
+    objects = paths.objects
     mask = paths.targets_sources_mask
-    sources, targets = paths.sources.numpy(), paths.targets.numpy()
+    sources, targets = paths.sources, paths.targets
 
     # Emit directly two lists of the beginnings and endings of line segments
     starts = []
@@ -611,7 +611,7 @@ def scene_scale(scene):
     )
     for source, destination in devices:
         for k, rd in source.items():
-            p = rd.position.numpy()
+            p = rd.position
             bbox.expand(p)
             destination[k] = p
 
@@ -638,7 +638,7 @@ def fibonacci_lattice(num_points, dtype=np.float_):
     """
 
     golden_ratio = (1.0 + np.sqrt(np.float64(5))) / 2.0
-    ns = np.range(0, num_points, dtype=np.float64)
+    ns = np.arange(0, num_points, dtype=np.float_)
 
     x = ns / golden_ratio
     x = x - np.floor(x)
@@ -904,7 +904,7 @@ def mitsuba_rectangle_to_world(center, orientation, size, ris=False):
     orientation = 180.0 * orientation / np.pi
 
     trans = (
-        mi.ScalarTransform4f.translate(center.numpy())
+        mi.ScalarTransform4f.translate(center)
         @ mi.ScalarTransform4f.rotate(axis=[0, 0, 1], angle=orientation[0])
         @ mi.ScalarTransform4f.rotate(axis=[0, 1, 0], angle=orientation[1])
         @ mi.ScalarTransform4f.rotate(axis=[1, 0, 0], angle=orientation[2])

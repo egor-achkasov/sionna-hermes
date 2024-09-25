@@ -38,7 +38,7 @@ class CellGrid:
     num_cols : int
         Number of columns. Must at least be equal to three.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -120,7 +120,7 @@ class Profile(ABC):
 
     Parameters
     ----------
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -216,7 +216,7 @@ class AmplitudeProfile(Profile):
 
     Parameters
     ----------
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -270,7 +270,7 @@ class PhaseProfile(Profile):
 
     Parameters
     ----------
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -324,7 +324,7 @@ class DiscreteProfile(Profile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_, [num_modes, num_rows, num_cols]
         Values of the discrete profile for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
@@ -337,7 +337,7 @@ class DiscreteProfile(Profile):
         Defaults to `None`. In this case, the
         :class:`~sionna.rt.LagrangeProfileInterpolator` will be used.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -392,7 +392,7 @@ class DiscreteProfile(Profile):
     @property
     def shape(self):
         r"""
-        tf.TensorShape : Shape of the tensor holding the values of
+        tuple : Shape of the tensor holding the values of
             the discrete profile
         """
         return (self.num_modes, self.cell_grid.num_rows, self.cell_grid.num_cols)
@@ -1016,7 +1016,7 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_ [num_modes, num_rows, num_cols]
         Amplitude values for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
@@ -1034,7 +1034,7 @@ class DiscreteAmplitudeProfile(DiscreteProfile, AmplitudeProfile):
         Defaults to `None`. In this case, the
         :class:`~sionna.rt.LagrangeProfileInterpolator` will be used.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -1137,7 +1137,7 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
         Number of reradiation modes.
         Defaults to 1.
 
-    values : np.float_ or tf.Variable, [num_modes, num_rows, num_cols]
+    values : np.float_ [num_modes, num_rows, num_cols]
         Phase values [rad] for each reradiation mode
         and unit cell. `num_rows` and `num_cols` are defined by the
         `cell_grid`.
@@ -1150,7 +1150,7 @@ class DiscretePhaseProfile(DiscreteProfile, PhaseProfile):
         Defaults to `None`. In this case, the
         :class:`~sionna.rt.LagrangeProfileInterpolator` will be used.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -1261,7 +1261,7 @@ class RIS(RadioDevice, SceneObject):
         Each RGB component must have a value within the range :math:`\in [0,1]`.
         Defaults to `[0.862,0.078,0.235]`.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Datatype to be used in internal calculations.
         Defaults to `np.complex_`.
 
@@ -1285,7 +1285,7 @@ class RIS(RadioDevice, SceneObject):
 
     Output
     ------
-    gamma : [num_modes, num_samples] or [num_samples], tf.complex
+    gamma : [num_modes, num_samples] or [num_samples], np.complex_
         Spatial modulation coefficient at the sample positions
 
     grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_
@@ -1516,7 +1516,7 @@ class RIS(RadioDevice, SceneObject):
 
         # Ensure the desired shape [num_modes, 3]
         for i, x in enumerate([sources, targets]):
-            if not (np.shape(x) == shape).numpy().all():
+            if not (np.shape(x) == shape).all():
                 msg = (
                     f"Wrong shape of input {i+1}. " + f"Expected {shape}, got {x.shape}"
                 )
@@ -1605,7 +1605,7 @@ class RIS(RadioDevice, SceneObject):
 
         # Ensure the desired shape [num_modes, 3]
         for i, x in enumerate([sources, targets]):
-            if not (np.shape(x) == shape).numpy().all():
+            if not (np.shape(x) == shape).all():
                 msg = (
                     f"Wrong shape of input {i+1}. " + f"Expected {shape}, got {x.shape}"
                 )
@@ -1660,7 +1660,7 @@ class RIS(RadioDevice, SceneObject):
 
         Output
         ------
-        gamma : [num_modes, num_samples] or [num_samples], tf.complex
+        gamma : [num_modes, num_samples] or [num_samples], np.complex_
             Spatial modulation coefficient at the sample positions
 
         grads : [num_modes, num_samples, 3] or [num_samples, 3], np.float_

@@ -138,20 +138,20 @@ class SceneObject(Object):
     @property
     def velocity(self):
         """
-        [3], tf.float : Get/set the velocity vector [m/s]
+        [3], np.float_ : Get/set the velocity vector [m/s]
         """
         return self._velocity
 
     @velocity.setter
     def velocity(self, v):
-        if not np.shape(v) == 3:
+        if not np.shape(v) == (3,):
             raise ValueError("`velocity` must have shape [3]")
         self._velocity = np.asarray(v, self._rdtype)
 
     @property
     def position(self):
         """
-        [3], tf.float : Get/set the position vector [m] of the center
+        [3], np.float_ : Get/set the position vector [m] of the center
             of the object. The center is defined as the object's axis-aligned
             bounding box (AABB).
         """
@@ -253,7 +253,7 @@ class SceneObject(Object):
     @property
     def orientation(self):
         r"""
-        [3], tf.float : Get/set the orientation :math:`(\alpha, \beta, \gamma)`
+        [3], np.float_ : Get/set the orientation :math:`(\alpha, \beta, \gamma)`
             [rad] specified through three angles corresponding to a
             3D rotation as defined in :eq:`rotation`.
         """
@@ -269,17 +269,17 @@ class SceneObject(Object):
         new_rotation = angles_to_mitsuba_rotation(new_orient)
 
         # Invert the current orientation
-        cur_rotation = angles_to_mitsuba_rotation(self._orientation.numpy())
+        cur_rotation = angles_to_mitsuba_rotation(self._orientation)
         inv_cur_rotation = cur_rotation.inverse()
 
         # Build the transform.
         # The object is first translated to the origin, then rotated, then
         # translated back to its current position
         transform = (
-            self._mi_transform_t.translate(self.position.numpy())
+            self._mi_transform_t.translate(self.position)
             @ new_rotation
             @ inv_cur_rotation
-            @ self._mi_transform_t.translate(-self.position.numpy())
+            @ self._mi_transform_t.translate(-self.position)
         )
 
         # Update Mitsuba vertices

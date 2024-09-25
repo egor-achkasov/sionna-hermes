@@ -117,9 +117,6 @@ class Scene:
         # If a filename is provided, loads the scene from it.
         # The previous scene is overwritten.
         if env_filename:
-            if dtype not in (np.complex64, np.complex128):
-                msg = "`dtype` must be np.complex64 or np.complex128`"
-                raise ValueError(msg)
             self._dtype = dtype
             self._rdtype = np.float_
 
@@ -1635,7 +1632,7 @@ class Scene:
 
         if show_color_bar:
             _, normalizer, color_map = coverage_map_color_mapping(
-                coverage_map[cm_tx, :, :].numpy(),
+                coverage_map[cm_tx, :, :],
                 db_scale=cm_db_scale,
                 vmin=cm_vmin,
                 vmax=cm_vmax,
@@ -1975,9 +1972,8 @@ class Scene:
         """
         # Parse all shapes in the scene
         scene = self._scene
-        objects_id = dr.reinterpret_array_v(mi.UInt32, scene.shapes_dr()).tf()
+        objects_id = dr.reinterpret_array_v(mi.UInt32, scene.shapes_dr())
         for obj_id, s in zip(objects_id, scene.shapes()):
-            obj_id = int(obj_id.numpy())
             # Only meshes are handled
             if not isinstance(s, mi.Mesh):
                 raise TypeError("Only triangle meshes are supported")
@@ -2036,9 +2032,9 @@ def load_scene(filename=None, dtype=np.complex_):
         from `Mitsuba 3 <https://mitsuba.readthedocs.io/en/stable/src/key_topics/scene_format.html>`_.
         Defaults to `None` for which an empty scene is created.
 
-    dtype : tf.complex
+    dtype : np.dtype
         Dtype used for all internal computations and outputs.
-        Defaults to `tf.complex64`.
+        Defaults to `np.complex_`.
 
     Output
     ------

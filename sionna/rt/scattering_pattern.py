@@ -38,7 +38,7 @@ class ScatteringPattern(ABC):
         Parameter determining the percentage of the diffusely
         reflected energy in the lobe around the specular reflection.
 
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Datatype used for all computations.
         Defaults to `np.complex_`.
 
@@ -76,8 +76,8 @@ class ScatteringPattern(ABC):
         """Precomputes several tensors needed for the __call__"""
         alpha_max = max(alpha_max, 1)
         ScatteringPattern._alpha_max = alpha_max
-        j_even = np.arange(0, alpha_max + 1, delta=2, dtype=np.float_)
-        j_odd = np.arange(1, alpha_max + 1, delta=2, dtype=np.float_)
+        j_even = np.arange(0, alpha_max + 1, 2, dtype=np.float_)
+        j_odd = np.arange(1, alpha_max + 1, 2, dtype=np.float_)
         i_j_even = 2 * np.pi / (j_even + 1)
         n_max = (j_odd[-1] - 1) / 2
         w_range = np.arange(0, n_max + 1, dtype=np.float_)
@@ -319,7 +319,7 @@ class ScatteringPattern(ABC):
         if show_directions:
             r = np.max(pattern) * 1.1
             k_i = k_i[0, 0]
-            uvw = -k_i.numpy()
+            uvw = -k_i
             plt.quiver(
                 *r * uvw,
                 *-uvw,
@@ -335,7 +335,7 @@ class ScatteringPattern(ABC):
 
             theta_i, phi_i = theta_phi_from_unit_vec(-k_i)
             theta_r, phi_r = theta_i, phi_i + np.pi
-            k_r = r_hat(theta_r, phi_r).numpy()
+            k_r = r_hat(theta_r, phi_r)
             plt.quiver(
                 *[0, 0, 0],
                 *k_r,
@@ -401,10 +401,10 @@ class ScatteringPattern(ABC):
 
         if show_directions:
             xticks = list(ax.get_xticks())
-            if not theta_i.numpy() in xticks:
-                xticks += [theta_i.numpy()]
-            if not -theta_i.numpy() in xticks:
-                xticks += [-theta_i.numpy()]
+            if not theta_i in xticks:
+                xticks += [theta_i]
+            if not -theta_i in xticks:
+                xticks += [-theta_i]
             ax.set_xticks(xticks)
             ax.text(
                 -theta_i - 10 * np.pi / 180,
@@ -440,7 +440,7 @@ class LambertianPattern(ScatteringPattern):
 
     Parameters
     ----------
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Datatype used for all computations.
         Defaults to `np.complex_`.
 
@@ -483,7 +483,7 @@ class DirectivePattern(ScatteringPattern):
         Parameter related to the width of the scattering lobe in the
         direction of the specular reflection.
 
-    dtype : np.complex_ or np.complex_
+    dtype : np.dtype
         Datatype used for all computations.
         Defaults to `np.complex_`.
 
@@ -519,17 +519,6 @@ class BackscatteringPattern(ScatteringPattern):
     # pylint: disable=line-too-long
     r"""
     Backscattering model from [Degli-Esposti07]_ as given in :eq:`backscattering_model`
-
-    The parameter ``lambda_`` can be assigned to a TensorFlow variable
-    or tensor.  In the latter case, the tensor can be the output of a callable, such as
-    a Keras layer implementing a neural network.
-    In the former case, it can be set to a trainable variable:
-
-    .. code-block:: Python
-
-        sp = BackscatteringPattern(alpha_r=3,
-                                   alpha_i=5,
-                                   lambda_=tf.Variable(0.3, dtype=np.float_))
 
     Parameters
     ----------
