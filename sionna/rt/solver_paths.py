@@ -2111,8 +2111,7 @@ class SolverPaths(SolverBase):
         gather_indices = np.argwhere(keep)
         # feeding gather_indices from np.argwhere will fail,
         # so we have to do some wizardry
-        # TODO-hermes: this is disgusting, find a better way to do that
-        gather_indices_numpy = gather_indices.T.tolist()
+        gather_indices_numpy = gather_indices.T
         # [num_targets, num_sources, num_samples]
         path_indices = np.cumsum(np.asarray(keep, np.int_), axis=-1)
         # [num_valid]
@@ -2125,7 +2124,7 @@ class SolverPaths(SolverBase):
         # [num_valid, 3]
         scatter_indices = np.transpose(scatter_indices, [1, 0])
         # Same as for gather_indices
-        scatter_indices_numpy = scatter_indices.T.tolist()
+        scatter_indices_numpy = scatter_indices.T
 
         # Locations of the interactions
         # [max_depth, num_targets, num_sources, max_num_paths, 3]
@@ -2523,10 +2522,8 @@ class SolverPaths(SolverBase):
 
             else:
                 # [max_depth, num_targets, num_sources, max_num_paths]
-                etas = np.take_along_axis(relative_permittivity, valid_object_idx)
-                scattering_coefficient = np.take_along_axis(
-                    scattering_coefficient, valid_object_idx
-                )
+                etas = relative_permittivity[valid_object_idx]
+                scattering_coefficient = scattering_coefficient[valid_object_idx]
         else:
             # [max_depth, num_targets, num_sources, max_num_paths]
             etas, scattering_coefficient, _ = rm_callable(objects, vertices)
@@ -4267,7 +4264,7 @@ class SolverPaths(SolverBase):
         # Reshape targets
         # vertices : [max_depth + 1, num_targets, num_sources, max_num_paths, 3]
         targets = np.reshape(targets, [-1, 3])
-        vertices[target_indices] = targets
+        vertices[*target_indices.T] = targets
         # Direction of arrivals (k_i)
         # The last item (k_i[max_depth]) correspond to the direction of arrival
         # at the target. Therefore, k_i is a tensor of length `max_depth + 1`,
@@ -4325,9 +4322,12 @@ class SolverPaths(SolverBase):
             # Depth of the rays
             # [num_targets, num_sources, max_num_paths]
             ray_depth = np.sum(np.asarray(valid_ray, np.int_), axis=0)
-            k_rx = -np.take_along_axis(
-                np.transpose(k_i, [1, 2, 3, 0, 4]), ray_depth, batch_dims=3, axis=3
-            )
+
+            # Compute the direction of the scattered field
+            k_rx = np.empty([*ray_depth.shape, 3], np.float_)
+            for ii, d in zip(np.ndindex(ray_depth.shape), np.nditer(ray_depth)):
+                k_rx[*ii, :] = -k_i[d, *ii, :]
+
             # theta_r, phi_r: [num_targets, num_sources, max_num_paths]
             theta_r, phi_r = theta_phi_from_unit_vec(k_rx)
 
@@ -4348,7 +4348,6 @@ class SolverPaths(SolverBase):
             # Keep only the paths with no duplicates.
             # If many paths are identical, keep the one with the highest index
             # [num_targets, num_sources, max_num_paths, max_num_paths]
-            # TODO-hermes : Check if the eye shape is correct
             sim = np.triu(sim) & ~np.eye(sim.shape[-1], dtype=np.bool_),
             sim = np.logical_and(sim, np.expand_dims(mask, axis=-2))
             # [num_targets, num_sources, max_num_paths]
@@ -4436,7 +4435,7 @@ class SolverPaths(SolverBase):
         else:
             valid_objects = np.where(objects_mask, 0, paths.objects)
         # [max_depth, num_targets, num_sources, max_num_paths, 3]
-        velocity = np.take_along_axis(velocity, valid_objects, axis=0)
+        velocity = velocity[valid_objects]
 
         # Compute Doppler shift per path
         # [num_targets, num_sources, max_num_paths]
