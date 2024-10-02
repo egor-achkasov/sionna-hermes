@@ -233,7 +233,7 @@ class SceneObject(Object):
 
         # Indices of the wedges corresponding to this object
         # [num_wedges]
-        wedges_ind, _ = np.unique(np.where(wedges_objects == obj_id)[:, 0])
+        wedges_ind, _ = np.unique(np.argwhere(wedges_objects == obj_id)[:, 0])
 
         # Corresponding origins
         # [num_wedges, 3]
@@ -352,7 +352,7 @@ class SceneObject(Object):
 
         # Indices of the wedges corresponding to this object
         # [num_wedges]
-        wedges_ind, _ = np.unique(np.where(wedges_objects == obj_id)[:, 0])
+        wedges_ind, _ = np.unique(np.argwhere(wedges_objects == obj_id)[:, 0])
 
         # Corresponding origins, e_hat, and normals
         # [num_wedges, 3]

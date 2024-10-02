@@ -697,7 +697,7 @@ class SolverCoverageMap(SolverBase):
         # samples.
         # Indices of the samples that hit the coverage map
         # (num_hits,)
-        hit_mp_ind = np.where(hit_mp)[:, 0]
+        hit_mp_ind = np.argwhere(hit_mp)[:, 0]
         # Indices of the transmitters corresponding to the rays that hit
         # (num_hits,)
         hit_mp_tx_ind = samples_tx_indices[hit_mp_ind]
@@ -1389,7 +1389,7 @@ class SolverCoverageMap(SolverBase):
 
             # Indices of rays hitting this RIS
             # (num_active_samples,)
-            this_ris_sample_ind = np.where(ris_ind == this_ris_id)[:, 0]
+            this_ris_sample_ind = np.argwhere(ris_ind == this_ris_id)[:, 0]
             num_active_samples = this_ris_sample_ind.shape[0]
 
             # Gather incident ray directions for this RIS
@@ -1403,7 +1403,7 @@ class SolverCoverageMap(SolverBase):
             hit_front = hit_front > 0.0
 
             # Gather indices of rays that hit this RIS from the front
-            this_ris_sample_ind = this_ris_sample_ind[np.where(hit_front)[:, 0]]
+            this_ris_sample_ind = this_ris_sample_ind[np.argwhere(hit_front)[:, 0]]
 
             # Extract data relevant to this RIS
             # (this_ris_num_samples, 3)
@@ -1601,7 +1601,7 @@ class SolverCoverageMap(SolverBase):
 
         num_samples = valid_ray.shape[0]
         # (num_valid_samples,)
-        valid_ind = np.where(valid_ray)[:, 0]
+        valid_ind = np.argwhere(valid_ray)[:, 0]
         # (num_valid_samples,)
         valid_tx_ind = samples_tx_indices[valid_ind]
         # (num_valid_samples, 3)
@@ -2039,7 +2039,7 @@ class SolverCoverageMap(SolverBase):
 
         # Indices of the active samples
         # (num_active_samples,)
-        active_ind = np.where(active)[:, 0]
+        active_ind = np.argwhere(active)[:, 0]
 
         # If only one of reflection or scattering is enabled, then all the
         # samples are used for the enabled phenomena to avoid wasting samples
@@ -2093,9 +2093,9 @@ class SolverCoverageMap(SolverBase):
 
             # Extract indices of the reflected and scattered rays
             # (num_reflected_samples,)
-            reflect_ind = active_ind[np.where(~scatter)[:, 0]]
+            reflect_ind = active_ind[np.argwhere(~scatter)[:, 0]]
             # (num_scattered_samples,)
-            scatter_ind = active_ind[np.where(scatter)[:, 0]]
+            scatter_ind = active_ind[np.argwhere(scatter)[:, 0]]
 
         return reflect_ind, scatter_ind
 
@@ -2988,7 +2988,7 @@ class SolverCoverageMap(SolverBase):
 
             # Indices of the rays that hit RIS
             # (num_ris_reflected_samples,)
-            ris_reflect_ind = np.where(hit_ris)[:, 0]
+            ris_reflect_ind = np.argwhere(hit_ris)[:, 0]
             updated_e_field = np.zeros([0, e_field.shape[1], 2], self._dtype)
             updated_field_es = np.zeros([0, 3], np.float_)
             updated_field_ep = np.zeros([0, 3], np.float_)
@@ -3188,7 +3188,7 @@ class SolverCoverageMap(SolverBase):
             if not np.any(active):
                 break
             # (num_active_samples,)
-            active_ind = np.where(active)[:, 0]
+            active_ind = np.argwhere(active)[:, 0]
             # (num_active_samples, ...)
             e_field = e_field[active_ind]
             field_es = field_es[active_ind]
@@ -3290,7 +3290,7 @@ class SolverCoverageMap(SolverBase):
 
         # Discard wedges with no valid link
         # (num_candidate_wedges,)
-        valid_wedges = np.where(np.any(mask, axis=0))[:, 0]
+        valid_wedges = np.argwhere(np.any(mask, axis=0))[:, 0]
         # (num_tx, num_candidate_wedges)
         mask = mask[:, valid_wedges]
         # (num_candidate_wedges,)
@@ -3378,7 +3378,8 @@ class SolverCoverageMap(SolverBase):
         # Extract only relevant indices
         # (num_samples,). Smaller but close than input num_samples in general
         # because of previous floor() op
-        ells = ells[np.where(ells_i < max_samples_per_wedge)][:, 0]
+        # TODO-hermes: check if we can avoid np.argwhere in indexing like this
+        ells = ells[np.argwhere(ells_i < max_samples_per_wedge)][:, 0]
 
         # Compute the corresponding points coordinates in the GCS
         # Wedges origin
@@ -3401,7 +3402,7 @@ class SolverCoverageMap(SolverBase):
         # (num_candidate_wedges x max_samples_per_wedge)
         gather_ind = gather_ind.reshape([-1])
         # (num_samples,)
-        gather_ind = gather_ind[np.where(ells_i < max_samples_per_wedge)][:, 0]
+        gather_ind = gather_ind[np.argwhere(ells_i < max_samples_per_wedge)][:, 0]
         # (num_samples, 3)
         origins = origins[gather_ind]
         e_hat = e_hat[gather_ind]
@@ -3501,7 +3502,7 @@ class SolverCoverageMap(SolverBase):
         diff_mask = np.logical_and(diff_mask, ~invalid)
         # Discard samples with no valid link
         # (num_candidate_wedges,)
-        valid_samples = np.where(np.any(diff_mask, axis=0))[:, 0]
+        valid_samples = np.argwhere(np.any(diff_mask, axis=0))[:, 0]
         # (num_tx, num_samples)
         diff_mask = diff_mask[:, valid_samples]
         # (num_samples,)
@@ -3730,7 +3731,7 @@ class SolverCoverageMap(SolverBase):
         diff_mask = np.logical_and(diff_mask, ~invalid)
         # Discard samples with no valid link
         # (num_candidate_wedges)
-        valid_samples = np.where(np.any(diff_mask, axis=0))[:, 0]
+        valid_samples = np.argwhere(np.any(diff_mask, axis=0))[:, 0]
         # (num_tx, num_samples)
         diff_mask = diff_mask[:, valid_samples]
         # (num_samples,)

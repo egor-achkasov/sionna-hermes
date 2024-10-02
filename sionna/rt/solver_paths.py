@@ -1386,7 +1386,7 @@ class SolverPaths(SolverBase):
             # max_depth > 0 or empty scene
             los_primitives = np.reshape(np.asarray(candidates[0], np.int_), [-1])
             los_primitives = np.unique(los_primitives)
-            los_primitives = los_primitives[np.where(los_primitives != -1)[0]]
+            los_primitives = los_primitives[np.nonzero(los_primitives != -1)]
         else:
             # max_depth == 0
             los_primitives = None
@@ -1450,7 +1450,7 @@ class SolverPaths(SolverBase):
             # Remove useless paths
             # [samples_per_source]
             useful_samples = np.logical_not(np.all(no_hit, axis=(0, 1)))
-            useful_samples_index = np.where(useful_samples)[:, 0]
+            useful_samples_index = np.argwhere(useful_samples)[:, 0]
             # [max_depth, num_sources, num_paths_per_source, 3]
             hit_points = hit_points[:, :, useful_samples_index]
             # [max_depth, num_sources, num_paths_per_source]
@@ -1486,7 +1486,7 @@ class SolverPaths(SolverBase):
             # to no hits
             # [num_samples]
             is_nlos = np.logical_not(np.all(candidates_ref == -1, axis=0))
-            is_nlos_ind = np.where(is_nlos)[:, 0]
+            is_nlos_ind = np.argwhere(is_nlos)[:, 0]
             candidates_ref = candidates_ref[:, is_nlos_ind]
 
         # The previous shoot and bounce process does not do next-event
@@ -2108,11 +2108,15 @@ class SolverPaths(SolverBase):
         # ()
         max_num_paths = np.max(num_paths)
         # [num_valid, 3]
-        gather_indices = np.where(keep)
+        gather_indices = np.argwhere(keep)
+        # feeding gather_indices from np.argwhere will fail,
+        # so we have to do some wizardry
+        # TODO-hermes: this is disgusting, find a better way to do that
+        gather_indices_numpy = gather_indices.T.tolist()
         # [num_targets, num_sources, num_samples]
         path_indices = np.cumsum(np.asarray(keep, np.int_), axis=-1)
         # [num_valid]
-        path_indices = path_indices[gather_indices] - 1
+        path_indices = path_indices[*gather_indices_numpy] - 1
         # [3, num_valid]
         scatter_indices = np.transpose(gather_indices, [1, 0])
         if not np.size(scatter_indices) == 0:
@@ -2120,15 +2124,8 @@ class SolverPaths(SolverBase):
             scatter_indices[2] = path_indices
         # [num_valid, 3]
         scatter_indices = np.transpose(scatter_indices, [1, 0])
-
-        # Mask of valid paths
-        # [num_targets, num_sources, max_num_paths]
-        #mask = np.full([num_targets, num_sources, max_num_paths], False)
-        ## [num_keep_paths]
-        #mask_ = valid[gather_indices]
-        ## [num_targets, num_sources, max_num_paths]
-        #np.add.at(mask, scatter_indices, mask_)
-        mask = valid.copy()
+        # Same as for gather_indices
+        scatter_indices_numpy = scatter_indices.T.tolist()
 
         # Locations of the interactions
         # [max_depth, num_targets, num_sources, max_num_paths, 3]
@@ -2145,49 +2142,18 @@ class SolverPaths(SolverBase):
             [max_depth, num_targets, num_sources, max_num_paths], -1
         )
 
-        for depth in range(int(max_depth)):
-            # Indices for storing the valid vertices/normals/primitives for
-            # this depth
-            # hermspy dev:
-            # [num_samples, 4 (that is depth, ?, ?, ?)]
-            scatter_indices_ = np.pad(
-                scatter_indices,
-                [[0, 0], [1, 0]],
-                mode="constant",
-                constant_values=depth,
-            )
-
-            # Loaction of the interactions
-            # Extract only the valid paths
-            # [num_targets, num_sources, num_samples, 3]
-            vertices_ = path_vertices[depth]
-            # [total_num_valid_paths, 3]
-            vertices_ = vertices_[gather_indices]
-            # Store the valid intersection points
-            # [max_depth, num_targets, num_sources, max_num_paths, 3]
-            valid_vertices[scatter_indices_] = vertices_
-
-            # Normals at the interactions
-            # Extract only the valid paths
-            # [num_targets, num_sources, num_samples, 3]
-            normals_ = np.take(path_normals, depth, axis=0)
-            # [total_num_valid_paths, 3]
-            normals_ = np.take_along_axis(normals_, gather_indices)
-            # Store the valid normals
-            # [max_depth, num_targets, num_sources, max_num_paths, 3]
-            valid_normals = np.put_along_axis(valid_normals, scatter_indices_, normals_, axis=0)
-
-            # Intersected primitives
-            # Extract only the valid paths
-            # [num_samples]
-            primitives_ = np.take_along_axis(candidates, depth, axis=0)
-            # [total_num_valid_paths]
-            primitives_ = np.take_along_axis(primitives_, gather_indices[:, 2])
-            # Store the valid primitives]
-            # [max_depth, num_targets, num_sources, max_num_paths]
-            valid_primitives = np.put_along_axis(
-                valid_primitives, scatter_indices_, primitives_
-            )
+        # Loaction of the interactions
+        # Extract only the valid paths
+        # [max_depth, num_targets, num_sources, max_num_paths, 3]
+        valid_vertices[:, *scatter_indices_numpy] = path_vertices[:, *gather_indices_numpy]
+        # Normals at the interactions
+        # Extract only the valid paths
+        # [max_depth, num_targets, num_sources, max_num_paths, 3]
+        valid_normals[:, *scatter_indices_numpy] = path_normals[:, *gather_indices_numpy]
+        # Intersected primitives
+        # Extract only the valid paths
+        # [max_depth, num_targets, num_sources, max_num_paths]
+        valid_primitives[:, *scatter_indices_numpy] = candidates[:, gather_indices[:, 2]]
 
         # Add a dummy entry to primitives_2_objects with value -1 for invalid
         # reflection.
@@ -2199,24 +2165,24 @@ class SolverPaths(SolverBase):
             self._primitives_2_objects, [[0, 1]], constant_values=-1
         )
         # Replace all -1 by num_samples
-        num_samples = np.shape(self._primitives_2_objects)[0]
+        num_samples = self._primitives_2_objects.shape[0]
         # [max_depth, num_targets, num_sources, max_num_paths]
         valid_primitives = np.where(
-            np.equal(valid_primitives, -1), num_samples, valid_primitives
+            valid_primitives == -1, num_samples, valid_primitives
         )
         # [max_depth, num_targets, num_sources, max_num_paths]
-        valid_objects = np.take_along_axis(primitives_2_objects, valid_primitives)
+        valid_objects = primitives_2_objects[valid_primitives]
 
         # Actual maximum depth
         if max_depth > 0:
             # Limit the depth to the actual max_depth
             # [max_depth]
-            useless_depth = np.all(np.equal(valid_objects, -1), axis=(1, 2, 3))
+            useless_depth = np.all(valid_objects == -1, axis=(1, 2, 3))
 
             max_depth = np.where(
                 np.any(useless_depth),
-                np.argmax(np.asarray(useless_depth, np.int_), output_type=np.int_),
-                max_depth,
+                np.argmax(np.asarray(useless_depth, np.int_)),
+                max_depth
             )
             max_depth = np.maximum(max_depth, 1)
             # [max_depth, num_targets, num_sources, max_num_paths, 3]
@@ -2226,7 +2192,7 @@ class SolverPaths(SolverBase):
             # [max_depth, num_targets, num_sources, max_num_paths]
             valid_objects = valid_objects[:max_depth]
 
-        return mask, valid_vertices, valid_objects, valid_normals
+        return valid, valid_vertices, valid_objects, valid_normals
 
     def _spec_image_method(self, candidates, paths, spec_paths_tmp, mi_ris_scene):
         # pylint: disable=line-too-long
@@ -2788,7 +2754,7 @@ class SolverPaths(SolverBase):
 
         # Discard paths with no valid link
         # [max_num_paths]
-        valid_paths = np.where(np.any(mask, axis=(0, 1)))[:, 0]
+        valid_paths = np.argwhere(np.any(mask, axis=(0, 1)))[:, 0]
         # [num_targets, num_sources, max_num_paths]
         mask = np.take_along_axis(mask, valid_paths, axis=2)
         # [max_num_paths]
@@ -3112,7 +3078,7 @@ class SolverPaths(SolverBase):
 
         # Build indices for keeping only valid path
         # [num_valid_paths, 3]
-        gather_indices = np.where(valid)
+        gather_indices = np.argwhere(valid)
         # [num_targets, num_sources, max_num_candidates]
         path_indices = np.cumsum(np.asarray(valid, np.int_), axis=-1)
         # [num_valid_paths]
@@ -3559,7 +3525,7 @@ class SolverPaths(SolverBase):
         max_num_paths = np.max(num_paths)
 
         # [num_valid_paths, 3]
-        gather_indices = np.where(prefix_mask_)
+        gather_indices = np.argwhere(prefix_mask_)
         # To build the indices of the paths in the tensor with optimized size,
         # the path dimension is indexed by counting the valid path in the order
         # in which they appear
@@ -3743,7 +3709,7 @@ class SolverPaths(SolverBase):
         mask = np.logical_and(mask, random_mask)
 
         # Discard paths invalid for all links
-        valid_indices = np.where(np.any(mask, axis=(0, 1, 2)))[:, 0]
+        valid_indices = np.argwhere(np.any(mask, axis=(0, 1, 2)))[:, 0]
         # [num_targets, num_sources, max_num_paths]]
         theta_t = np.take_along_axis(theta_t, valid_indices, axis=2)
         phi_t = np.take_along_axis(phi_t, valid_indices, axis=2)
@@ -3830,7 +3796,7 @@ class SolverPaths(SolverBase):
         max_num_paths = np.sum(path_count_depth)
 
         # [num_valid_paths, 4]
-        gather_indices = np.where(prefix_mask)
+        gather_indices = np.argwhere(prefix_mask)
         # To build the indices of the paths in the tensor with optimized size,
         # the path dimension is indexed by counting the valid path in the order
         # in which they appear
@@ -3922,7 +3888,7 @@ class SolverPaths(SolverBase):
             # Indices of valid paths with depth d
             # [num_valid_paths with depth=depth, 4]
             gather_indices_ = np.take_along_axis(
-                gather_indices, np.where(gather_indices[:, 0] == depth)[:, 0], axis=0
+                gather_indices, np.argwhere(gather_indices[:, 0] == depth)[:, 0], axis=0
             )
             # Depth is not needed for some tensors
             # [num_valid_paths with depth=depth, 3]
@@ -3931,7 +3897,7 @@ class SolverPaths(SolverBase):
             # Indices for scattering the results in the target tensor
             # [num_valid_paths with depth=depth, 4]
             scatter_indices_ = np.take_along_axis(
-                scatter_indices, np.where(scatter_indices[:, 0] == depth)[:, 0], axis=0
+                scatter_indices, np.argwhere(scatter_indices[:, 0] == depth)[:, 0], axis=0
             )
 
             # [1, 4]
@@ -4294,14 +4260,14 @@ class SolverPaths(SolverBase):
         target_indices = np.reshape(target_indices, [-1, 1])
         # Indices of all (target, source,paths) entries
         # [num_targets*num_sources*max_num_paths, 3]
-        target_indices_ = np.where(np.full(np.shape(vertices)[1:4], True))
+        target_indices_ = np.argwhere(np.full(vertices.shape[1:4], True))
         # Indices of all entries in vertices
         # [num_targets*num_sources*max_num_paths, 4]
         target_indices = np.concatenate([target_indices, target_indices_], axis=1)
         # Reshape targets
         # vertices : [max_depth + 1, num_targets, num_sources, max_num_paths, 3]
         targets = np.reshape(targets, [-1, 3])
-        vertices = np.put_along_axis(vertices, target_indices, targets)
+        vertices[target_indices] = targets
         # Direction of arrivals (k_i)
         # The last item (k_i[max_depth]) correspond to the direction of arrival
         # at the target. Therefore, k_i is a tensor of length `max_depth + 1`,
@@ -4892,7 +4858,7 @@ class SolverPaths(SolverBase):
         # Scattering: For scattering, a is the field specularly reflected by
         # the last interaction point. We need to compute the scattered field.
         # [num_scat_paths]
-        scat_ind = np.where(types == Paths.SCATTERED)[:, 0]
+        scat_ind = np.argwhere(types == Paths.SCATTERED)[:, 0]
         n_scat = np.size(scat_ind)
         if n_scat > 0:
             n_other = a.shape[-2] - n_scat

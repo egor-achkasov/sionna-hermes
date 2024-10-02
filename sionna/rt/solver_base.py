@@ -680,7 +680,7 @@ class SolverBase:
 
         # Extract only the selected lanes
         # [num_selected_edges]
-        selected_indices = np.where(is_selected)
+        selected_indices = np.argwhere(is_selected)
         # [num_selected_edges, 2, 3]
         selected_edges = unique_edges[is_selected]
         # [num_selected_edges, 3]
@@ -704,8 +704,9 @@ class SolverBase:
         # In the end, all we need to do is renumber the values of
         # `indices_of_unique` to refer to rows of `selected_edges` instead of
         # rows of `unique_edges`.
-        seq = np.asarray(np.arange(selected_edges.shape[0]), dtype=np.int_)
-        default[selected_indices] = seq
+        if selected_indices.size != 0:
+            seq = np.asarray(np.arange(selected_edges.shape[0]), dtype=np.int_)
+            default[selected_indices] = seq
         unique_edge_index_to_double_edge_index = default
         # [num_prim, 3]
         prim_to_wedges = np.reshape(
@@ -855,7 +856,7 @@ class SolverBase:
             return np.asarray([], np.int_)
 
         # Remove -1
-        candidates = np.take(candidates, np.where(np.not_equal(candidates, -1))[:, 0])
+        candidates = np.take(candidates, np.argwhere(np.not_equal(candidates, -1))[:, 0])
 
         # Remove duplicates
         candidates, _ = np.unique(candidates)
@@ -868,7 +869,7 @@ class SolverBase:
         # Remove -1
         # [<= num_samples*3]
         candidate_wedges = np.take(
-            candidate_wedges, np.where(np.not_equal(candidate_wedges, -1))[:, 0]
+            candidate_wedges, np.argwhere(np.not_equal(candidate_wedges, -1))[:, 0]
         )
 
         # Remove duplicates
@@ -879,7 +880,7 @@ class SolverBase:
         if not edge_diffraction:
             # [num_candidate_wedges]
             is_wedge = ~np.take(self._is_edge, candidate_wedges)
-            wedge_indices = np.where(is_wedge)[:, 0]
+            wedge_indices = np.argwhere(is_wedge)[:, 0]
             # [num_candidate_wedges]
             candidate_wedges = np.take(candidate_wedges, wedge_indices)
 

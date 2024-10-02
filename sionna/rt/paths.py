@@ -883,7 +883,7 @@ class Paths:
             # (num_paths,)
             los_path = np.any(los_path, axis=(0, 1))
             # (1,)
-            los_path_index = np.where(los_path)
+            los_path_index = np.argwhere(los_path)
             updates = np.repeat(Paths.LOS, los_path_index.shape[0], 0)
             self.types[los_path_index] = updates
 
