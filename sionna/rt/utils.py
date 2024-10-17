@@ -11,6 +11,17 @@ import mitsuba as mi
 import drjit as dr
 
 
+def matvec(
+        mat: np.ndarray,
+        vec: np.ndarray,
+        transpose_a: bool = False
+        ) -> np.ndarray:
+    r"""
+    Numpy implementation of tf.linalg.matvec
+    """
+    return np.einsum("...ij,...j->...i" if not transpose_a else "...ji,...j->...i", mat, vec)
+
+
 def rotation_matrix(angles):
     r"""
     Computes rotation matrices as defined in :eq:`rotation`
@@ -99,7 +110,7 @@ def rotate(p, angles, inverse=False):
     # (..., 3)
     if inverse:
         rot_mat = np.transpose(rot_mat, axes=(-1, -2))
-    rot_p = np.einsum("...ij,...j->...i", rot_mat, p)
+    rot_p = matvec(rot_mat, p)
 
     return rot_p
 
@@ -315,8 +326,8 @@ def normalize(v):
         Norm of the unnormalized vector
     """
     norm = np.linalg.norm(v, axis=-1, keepdims=True)
-    norm = np.where(norm == 0.0, np.inf, norm)
-    n_v = v / norm
+    with np.errstate(divide='ignore', invalid='ignore'):
+        n_v = np.where(norm == 0.0, 0., v / norm)
     norm = np.squeeze(norm, axis=-1)
     return n_v, norm
 
@@ -771,7 +782,7 @@ def sample_points_on_hemisphere(normals, num_samples=1):
     rot_mat = np.expand_dims(rot_mat, axis=1)
 
     # Compute rotated points
-    points = rot_mat @ points
+    points = matvec(rot_mat, points)
 
     # Numerical errors can cause sampling from the other hemisphere.
     # Correct the sampled vector to avoid sampling in the wrong hemisphere.

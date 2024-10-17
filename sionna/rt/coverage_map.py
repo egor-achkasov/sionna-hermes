@@ -8,7 +8,7 @@ Class that stores coverage map
 
 import matplotlib.pyplot as plt
 import numpy as np
-from .utils import rotation_matrix, mitsuba_rectangle_to_world
+from .utils import matvec, rotation_matrix, mitsuba_rectangle_to_world
 import warnings
 
 
@@ -108,11 +108,11 @@ class CoverageMap:
             msg = "`value` must have shape" " [num_tx, num_cells_y, num_cells_x]"
             raise ValueError(msg)
 
-        self._center = np.astype(center)
-        self._orientation = np.astype(orientation)
-        self._size = np.astype(size)
-        self._cell_size = np.astype(cell_size)
-        self._value = np.astype(value)
+        self._center = center
+        self._orientation = orientation
+        self._size = size
+        self._cell_size = cell_size
+        self._value = value
         self._transmitters = scene.transmitters
         # Dict mapping names to index for transmitters
         self._tx_name_2_ind = {}
@@ -152,7 +152,7 @@ class CoverageMap:
         # [1, 1, 3, 3]
         rot_cm_2_gcs_ = rot_cm_2_gcs[np.newaxis, np.newaxis, :, :]
         # [num_cells_x, num_cells_y, 3]
-        cell_pos = rot_cm_2_gcs_ @ cell_pos
+        cell_pos = matvec(rot_cm_2_gcs_, cell_pos)
         # [num_cells_x, num_cells_y, 3]
         cell_pos = cell_pos + self._center
         # [num_cells_y, num_cells_x, 3]
@@ -188,9 +188,9 @@ class CoverageMap:
         rot_gcs_2_cm_ = np.expand_dims(rot_gcs_2_cm, axis=0)
         # Positions in the coverage map system
         # [num_tx/num_rx/num_ris, 3]
-        tx_pos = rot_gcs_2_cm_ @ tx_pos
-        rx_pos = rot_gcs_2_cm_ @ rx_pos
-        ris_pos = rot_gcs_2_cm_ @ ris_pos
+        tx_pos = matvec(rot_gcs_2_cm_, tx_pos)
+        rx_pos = matvec(rot_gcs_2_cm_, rx_pos)
+        ris_pos = matvec(rot_gcs_2_cm_, ris_pos)
 
         # Keep only x and y
         # [num_tx/num_rx/num_ris, 2]

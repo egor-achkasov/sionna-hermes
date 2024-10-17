@@ -165,9 +165,7 @@ def compute_gain(pattern, dtype=np.complex_):
 
     # Create angular meshgrid
     theta = np.linspace(0.0, np.pi, 1810)
-    theta = float(theta)
     phi = np.linspace(-np.pi, np.pi, 3610)
-    phi = float(phi)
 
     theta_grid, phi_grid = np.meshgrid(theta, phi, indexing="ij")
 
@@ -493,9 +491,8 @@ def iso_pattern(theta, phi, slant_angle=0.0, polarization_model=2, dtype=np.comp
     .. figure:: ../figures/iso_pattern.png
         :align: center
     """
-    theta = float(theta)
-    phi = float(phi)
-    slant_angle = float(slant_angle)
+    theta = theta.astype(float)
+    phi = phi.astype(float)
     if not theta.shape == phi.shape:
         raise ValueError("theta and phi must have the same shape.")
     if polarization_model not in [1, 2]:
@@ -549,9 +546,6 @@ def dipole_pattern(
         :align: center
     """
     k = complex(np.sqrt(1.5))
-    theta = float(theta)
-    phi = float(phi)
-    slant_angle = float(slant_angle)
     if not theta.shape == phi.shape:
         raise ValueError("theta and phi must have the same shape.")
     if polarization_model not in [1, 2]:
@@ -605,10 +599,7 @@ def hw_dipole_pattern(
     .. figure:: ../figures/hw_dipole_pattern.png
         :align: center
     """
-    k = float(np.sqrt(1.643))
-    theta = float(theta)
-    phi = float(phi)
-    slant_angle = float(slant_angle)
+    k = np.sqrt(1.643)
     if not theta.shape == phi.shape:
         raise ValueError("theta and phi must have the same shape.")
     if polarization_model not in [1, 2]:
@@ -663,10 +654,6 @@ def tr38901_pattern(
     .. figure:: ../figures/tr38901_pattern.png
         :align: center
     """
-    theta = float(theta)
-    phi = float(phi)
-    slant_angle = float(slant_angle)
-
     # Wrap phi to [-np.pi,np.pi]
     phi = np.mod(phi + np.pi, 2 * np.pi) - np.pi
 

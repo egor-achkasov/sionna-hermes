@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from .radio_device import RadioDevice
 from .scene_object import SceneObject
 from . import scene
-from .utils import rotate, normalize, outer
+from .utils import matvec, rotate, normalize, outer
 
 
 class CellGrid:
@@ -1535,7 +1535,7 @@ class RIS(RadioDevice, SceneObject):
 
         # Compute phase gradient - Eq.(12)
         # [num_modes, 3]
-        grad = self.scene.wavenumber * (p @ (k_i - k_r))
+        grad = self.scene.wavenumber * matvec(p, k_i - k_r)
         # Rotate phase gradient to LCS of the RIS and keep y/z components
         # [num_modes, 1, 1, 2]
         grad = rotate(grad, self.orientation, inverse=True)[:, 1:]

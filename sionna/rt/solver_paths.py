@@ -16,6 +16,7 @@ from scipy.special import fresnel
 
 from .paths import Paths
 from .utils import (
+    matvec,
     dot,
     phi_hat,
     theta_hat,
@@ -991,10 +992,10 @@ class SolverPaths(SolverBase):
         # [num_targets, num_sources, max_num_paths]
         all_paths.targets_sources_mask = all_paths.mask
         if self._scene.synthetic_array:
-            # [num_rx, num_tx, 2, 2]
+            # [num_rx, num_tx, max_num_paths, 2, 2]
             mat_t = all_paths_tmp.mat_t
             # [num_rx, 1, num_tx, 1, max_num_paths, 2, 2]
-            mat_t = np.expand_dims(np.expand_dims(mat_t, axis=1), axis=3)
+            mat_t = mat_t[:, np.newaxis, :, np.newaxis]
             all_paths_tmp.mat_t = mat_t
         else:
             num_rx = len(self._scene.receivers)
@@ -2126,6 +2127,14 @@ class SolverPaths(SolverBase):
         # Same as for gather_indices
         scatter_indices_numpy = scatter_indices.T
 
+        # Mask of valid paths
+        # [num_targets, num_sources, max_num_paths]
+        mask = np.full([num_targets, num_sources, max_num_paths], False)
+        # [num_keep_paths]
+        mask_ = valid[*gather_indices_numpy]
+        # [num_targets, num_sources, max_num_paths]
+        mask[*scatter_indices_numpy] = mask_
+
         # Locations of the interactions
         # [max_depth, num_targets, num_sources, max_num_paths, 3]
         valid_vertices = np.zeros(
@@ -2191,7 +2200,7 @@ class SolverPaths(SolverBase):
             # [max_depth, num_targets, num_sources, max_num_paths]
             valid_objects = valid_objects[:max_depth]
 
-        return valid, valid_vertices, valid_objects, valid_normals
+        return mask, valid_vertices, valid_objects, valid_normals
 
     def _spec_image_method(self, candidates, paths, spec_paths_tmp, mi_ris_scene):
         # pylint: disable=line-too-long
@@ -2353,8 +2362,16 @@ class SolverPaths(SolverBase):
 
         path_vertices.reverse()
         path_normals.reverse()
-        path_vertices = np.stack(path_vertices, axis=0)
-        path_normals = np.stack(path_normals, axis=0)
+
+        if len(path_vertices) > 0:
+            path_vertices = np.stack(path_vertices, axis=0)
+        else:
+            path_vertices = np.empty((0, num_targets, num_sources, num_samples, 3), np.float_)
+
+        if len(path_normals) > 0:
+            path_normals = np.stack(path_normals, axis=0)
+        else:
+            path_normals = np.empty((0, num_targets, num_sources, num_samples, 3), np.float_)
 
         # Prepares the rays for testing blockage between the last
         # interaction point and the sources.
@@ -2651,7 +2668,8 @@ class SolverPaths(SolverBase):
         total_distance = total_distance[..., np.newaxis, np.newaxis]
         total_distance = total_distance + 0.j
         # [num_targets, num_sources, max_num_paths, 2, 2]
-        mat_t = np.where(total_distance == 0., 0., mat_t / total_distance)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            mat_t = np.where(total_distance == 0., 0., mat_t / total_distance)
 
         # Set invalid paths to 0 and stores the transition matrices
         # Expand masks to broadcast with the field components
@@ -3881,7 +3899,7 @@ class SolverPaths(SolverBase):
         # iterations, we incremdent the path index by the maximum number
         # of paths over all links, cumulated over the iterations.
         path_ind_incr = 0
-        for depth in range(int(max_depth)):
+        for depth in range(max_depth):
             # Indices of valid paths with depth d
             # [num_valid_paths with depth=depth, 4]
             gather_indices_ = np.take_along_axis(
@@ -4310,8 +4328,9 @@ class SolverPaths(SolverBase):
         else:
             # [num_targets, num_sources, max_num_paths]
             total_distance = np.sum(distances, axis=0)
-            # [num_targets, num_sources, max_num_paths]
-            tau = total_distance / speed_of_light
+
+        # [num_targets, num_sources, max_num_paths]
+        tau = total_distance / speed_of_light
 
         # Compute angles of departures and arrival
         # theta_t, phi_t: [num_targets, num_sources, max_num_paths]
@@ -4325,8 +4344,9 @@ class SolverPaths(SolverBase):
 
             # Compute the direction of the scattered field
             k_rx = np.empty([*ray_depth.shape, 3], np.float_)
-            for ii, d in zip(np.ndindex(ray_depth.shape), np.nditer(ray_depth)):
-                k_rx[*ii, :] = -k_i[d, *ii, :]
+            if np.size(ray_depth) != 0:
+                for ii, d in zip(np.ndindex(ray_depth.shape), np.nditer(ray_depth)):
+                    k_rx[*ii, :] = -k_i[d, *ii, :]
 
             # theta_r, phi_r: [num_targets, num_sources, max_num_paths]
             theta_r, phi_r = theta_phi_from_unit_vec(k_rx)
@@ -4341,15 +4361,15 @@ class SolverPaths(SolverBase):
             # [num_targets, num_sources, max_num_paths, 4]
             sim = np.stack([theta_t, phi_t, theta_r, phi_r], axis=3)
             # [num_targets, num_sources, max_num_paths, max_num_paths, 4]
-            sim = np.expand_dims(sim, axis=2) - np.expand_dims(sim, axis=3)
+            sim = sim[:, :, np.newaxis] - sim[:, :, :, np.newaxis]
             # [num_targets, num_sources, max_num_paths, max_num_paths]
             sim = np.sum(np.square(sim), axis=4)
-            sim = np.equal(sim, np.zeros_like(sim))
+            sim = sim == 0
             # Keep only the paths with no duplicates.
             # If many paths are identical, keep the one with the highest index
             # [num_targets, num_sources, max_num_paths, max_num_paths]
-            sim = np.triu(sim) & ~np.eye(sim.shape[-1], dtype=np.bool_),
-            sim = np.logical_and(sim, np.expand_dims(mask, axis=-2))
+            sim = np.triu(sim) & ~np.eye(sim.shape[-1], dtype=np.bool_)
+            sim = sim & mask[..., np.newaxis, :]
             # [num_targets, num_sources, max_num_paths]
             uniques = np.all(~sim, axis=3)
             # Keep only the unique paths
@@ -4507,14 +4527,14 @@ class SolverPaths(SolverBase):
         # [num_tx, 1, 3, 3]
         tx_rot_mat = np.expand_dims(tx_rot_mat, axis=1)
         # [num_tx, tx_array_size, 3]
-        tx_rel_ant_pos = tx_rot_mat @ tx_rel_ant_pos
+        tx_rel_ant_pos = matvec(tx_rot_mat, tx_rel_ant_pos)
 
         # [1, rx_array_size, 3]
         rx_rel_ant_pos = np.expand_dims(self._scene.rx_array.positions, axis=0)
         # [num_rx, 1, 3, 3]
         rx_rot_mat = np.expand_dims(rx_rot_mat, axis=1)
         # [num_tx, tx_array_size, 3]
-        rx_rel_ant_pos = rx_rot_mat @ rx_rel_ant_pos
+        rx_rel_ant_pos = matvec(rx_rot_mat, rx_rel_ant_pos)
 
         return rx_rel_ant_pos, tx_rel_ant_pos
 
@@ -4549,7 +4569,7 @@ class SolverPaths(SolverBase):
         # [num_tx, num_tx, samples_per_tx, 3]
         k_rx = paths_tmp.k_rx
 
-        two_pi = np.asarray(2.0 * np.pi, np.float_)
+        two_pi = 2.0 * np.pi
 
         # Relative positions of the antennas of the transmitters and receivers
         # rx_rel_ant_pos: [num_rx, rx_array_size, 3], np.float_
@@ -4596,6 +4616,7 @@ class SolverPaths(SolverBase):
         # [num_rx, num_rx_patterns, rx_array_size, num_tx, num_tx_patterns,
         #   tx_array_size, max_num_paths]
         a = a * np.exp(1.j*phase_shifts)
+        # HermesPy dev: [num_rx, num_rx_ants, num_tx, num_tx_ants, max_num_paths]
         a = a.reshape((
             a.shape[0], a.shape[1]*a.shape[2],
             a.shape[3], a.shape[4]*a.shape[5],
@@ -4694,7 +4715,7 @@ class SolverPaths(SolverBase):
 
         # Apply multiplication by wavelength/4pi
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths,2, 2]
-        cst = np.asarray(self._scene.wavelength / (4.0 * np.pi), self._dtype)
+        cst = self._scene.wavelength / (4.0 * np.pi)
         a = cst * mat_t
 
         # Get dimensions that are needed later on
@@ -4724,12 +4745,12 @@ class SolverPaths(SolverBase):
         # Normalized wave transmit vector in the local coordinate system of
         # the transmitters
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths, 3]
-        k_prime_t = tx_rot_mat.T @ k_tx
+        k_prime_t = matvec(tx_rot_mat, k_tx, True)
 
         # Normalized wave receiver vector in the local coordinate system of
         # the receivers
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths, 3]
-        k_prime_r = rx_rot_mat.T @ k_rx
+        k_prime_r = matvec(rx_rot_mat, k_rx, True)
 
         # Angles of departure in the local coordinate system of the
         # transmitter
@@ -4759,11 +4780,11 @@ class SolverPaths(SolverBase):
         # For transmitters
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths]
         tx_lcs2gcs_11 = dot(
-            theta_hat_t, tx_rot_mat @ theta_hat_prime_t
+            theta_hat_t, matvec(tx_rot_mat, theta_hat_prime_t)
         )
-        tx_lcs2gcs_12 = dot(theta_hat_t, tx_rot_mat @ phi_hat_prime_t)
-        tx_lcs2gcs_21 = dot(phi_hat_t, tx_rot_mat @ theta_hat_prime_t)
-        tx_lcs2gcs_22 = dot(phi_hat_t, tx_rot_mat @ phi_hat_prime_t)
+        tx_lcs2gcs_12 = dot(theta_hat_t, matvec(tx_rot_mat, phi_hat_prime_t))
+        tx_lcs2gcs_21 = dot(phi_hat_t, matvec(tx_rot_mat, theta_hat_prime_t))
+        tx_lcs2gcs_22 = dot(phi_hat_t, matvec(tx_rot_mat, phi_hat_prime_t))
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths,2, 2]
         tx_lcs2gcs = np.stack(
             [
@@ -4776,11 +4797,11 @@ class SolverPaths(SolverBase):
         # For receivers
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths]
         rx_lcs2gcs_11 = dot(
-            theta_hat_r, rx_rot_mat @ theta_hat_prime_r
+            theta_hat_r, matvec(rx_rot_mat, theta_hat_prime_r)
         )
-        rx_lcs2gcs_12 = dot(theta_hat_r, rx_rot_mat @ phi_hat_prime_r)
-        rx_lcs2gcs_21 = dot(phi_hat_r, rx_rot_mat @ theta_hat_prime_r)
-        rx_lcs2gcs_22 = dot(phi_hat_r, rx_rot_mat @ phi_hat_prime_r)
+        rx_lcs2gcs_12 = dot(theta_hat_r, matvec(rx_rot_mat, phi_hat_prime_r))
+        rx_lcs2gcs_21 = dot(phi_hat_r, matvec(rx_rot_mat, theta_hat_prime_r))
+        rx_lcs2gcs_22 = dot(phi_hat_r, matvec(rx_rot_mat, phi_hat_prime_r))
         # [num_rx, 1/rx_array_size, num_tx, 1/tx_array_size, max_num_paths,2, 2]
         rx_lcs2gcs = np.stack(
             [
@@ -4835,14 +4856,14 @@ class SolverPaths(SolverBase):
         rx_lcs2gcs = np.expand_dims(np.expand_dims(rx_lcs2gcs, axis=1), axis=4)
         # [num_rx, num_rx_patterns, 1/rx_array_size, num_tx, 1, 1/tx_array_size,
         #   max_num_paths, 2]
-        rx_ant_fields = rx_lcs2gcs @ rx_ant_fields_hat
+        rx_ant_fields = matvec(rx_lcs2gcs, rx_ant_fields_hat)
         # Expand to broadcast with antenna patterns
         # [num_rx, 1, 1/rx_array_size, num_tx, 1, 1/tx_array_size,
         #   max_num_paths, 2, 2]
         tx_lcs2gcs = np.expand_dims(np.expand_dims(tx_lcs2gcs, axis=1), axis=4)
         # [num_rx, 1, 1/rx_array_size, num_tx, num_tx_patterns, 1/tx_array_size,
-        #   max_num_paths, 2, 2]
-        tx_ant_fields = tx_lcs2gcs @ tx_ant_fields_hat
+        #   max_num_paths, 2]
+        tx_ant_fields = matvec(tx_lcs2gcs, tx_ant_fields_hat)
 
         # Expand the field to broadcast with the antenna patterns
         # [num_rx, 1, rx_array_size, num_tx, 1, tx_array_size, max_num_paths,
@@ -4852,7 +4873,7 @@ class SolverPaths(SolverBase):
         # Compute transmitted field
         # [num_rx, 1, 1/rx_array_size, num_tx, num_tx_patterns, 1/tx_array_size,
         #   max_num_paths, 2]
-        a = a @ tx_ant_fields
+        a = matvec(a, tx_ant_fields)
 
         # Scattering: For scattering, a is the field specularly reflected by
         # the last interaction point. We need to compute the scattered field.
@@ -5078,7 +5099,7 @@ class SolverPaths(SolverBase):
             a_scat = field_vec * e_spec
 
             # Basis transform
-            a_scat = trans_mat @ a_scat
+            a_scat = matvec(trans_mat, a_scat)
 
             # Concat with other paths
             a = np.concatenate([a_other, a_scat], axis=-2)

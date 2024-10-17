@@ -20,9 +20,7 @@ As a Hermes submodule. Follow the [installation instructions](https://hermespy.o
 ### rt
 
 - Replace tensorflow with numpy
-- Assume synthetic_array is True
 - Assume `rdtype` as `np.float_`
-- Remove all `num_rx_ant` and `num_tx_ant` dimensions
 - Remove all `batch_size` dimensions
 - Remove unused functions and properties:
     - Paths.reverse_direction

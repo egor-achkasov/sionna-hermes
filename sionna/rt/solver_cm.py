@@ -13,6 +13,7 @@ import numpy as np
 from scipy.special import fresnel
 
 from .utils import (
+    matvec,
     dot,
     outer,
     phi_hat,
@@ -378,7 +379,7 @@ class SolverCoverageMap(SolverBase):
         # Coverage map cells' indices
         # Coordinates of the hit point in the coverage map LCS
         # (..., 3)
-        hit_point = rot_gcs_2_mp @ (hit_point - cm_center)
+        hit_point = matvec(rot_gcs_2_mp, hit_point - cm_center)
 
         # In the local coordinate system of the coverage map, z should be 0
         # as the coverage map is in XY
@@ -442,7 +443,7 @@ class SolverCoverageMap(SolverBase):
 
         # Normalized direction vector in the LCS of the radio device
         # (..., 3)
-        k_prime = rot_mat.T @ k
+        k_prime = matvec(rot_mat, k, True)
 
         # Angles of departure in the local coordinate system of the
         # radio device
@@ -461,8 +462,8 @@ class SolverCoverageMap(SolverBase):
 
         # Rotate the LCS according to the radio device orientation
         # (..., 3)
-        theta_hat_prime = rot_mat @ theta_hat_prime
-        phi_hat_prime = rot_mat @ phi_hat_prime
+        theta_hat_prime = matvec(rot_mat, theta_hat_prime)
+        phi_hat_prime = matvec(rot_mat, phi_hat_prime)
 
         # Rotation matrix for going from the spherical radio device LCS to the
         # spherical GCS
@@ -488,7 +489,7 @@ class SolverCoverageMap(SolverBase):
         # (..., 1, 2, 2)
         lcs2gcs = np.expand_dims(lcs2gcs, axis=-3)
         # (..., num_patterns, 2)
-        fields_hat = lcs2gcs @ fields_hat
+        fields_hat = matvec(lcs2gcs, fields_hat)
 
         return fields_hat, theta_hat_, phi_hat_
 
@@ -533,7 +534,7 @@ class SolverCoverageMap(SolverBase):
         # (..., 1, 3, 3)
         tx_rot_mat_ = np.expand_dims(tx_rot_mat, axis=-3)
         # (..., tx_array_size, 3)
-        tx_rel_ant_pos = tx_rot_mat_ @ tx_rel_ant_pos
+        tx_rel_ant_pos = matvec(tx_rot_mat_, tx_rel_ant_pos)
 
         # Rotated position of the RX antenna elements
         # (1, rx_array_size, 3)
@@ -541,7 +542,7 @@ class SolverCoverageMap(SolverBase):
         # (1, 3, 3)
         rx_rot_mat = np.expand_dims(rx_rot_mat, axis=0)
         # (rx_array_size, 3)
-        rx_rel_ant_pos = rx_rot_mat @ rx_rel_ant_pos
+        rx_rel_ant_pos = matvec(rx_rot_mat, rx_rel_ant_pos)
         # (..., rx_array_size, 3)
         num_extra_dims = max(0, tx_rel_ant_pos.ndim - rx_rel_ant_pos.ndim)
         rx_rel_ant_pos = rx_rel_ant_pos.reshape(
@@ -757,7 +758,7 @@ class SolverCoverageMap(SolverBase):
         to_rx_mat = np.expand_dims(to_rx_mat, axis=1)
         to_rx_mat = to_rx_mat + 0.0j
         # (num_hits, num_tx_patterns, 2)
-        e_field = to_rx_mat @ e_field
+        e_field = matvec(to_rx_mat, e_field)
         # Apply the receiver antenna field to compute the channel coefficient
         # (num_hits num_rx_patterns, 1, 2)
         rx_field = np.expand_dims(rx_field, axis=2)
@@ -909,7 +910,7 @@ class SolverCoverageMap(SolverBase):
         to_incident = np.expand_dims(to_incident, axis=1)
         to_incident = to_incident + 0.0j
         # (num_active_samples, num_tx_patterns, 2)
-        e_field = to_incident @ e_field
+        e_field = matvec(to_incident, e_field)
 
         # Compute the reflection coefficients
         # (num_active_samples,)
@@ -1123,7 +1124,7 @@ class SolverCoverageMap(SolverBase):
         to_incident = np.expand_dims(to_incident, axis=1)
         to_incident = to_incident + 0.0j
         # (num_active_samples, num_tx_patterns, 2)
-        e_field_ref = to_incident @ e_field
+        e_field_ref = matvec(to_incident, e_field)
 
         # Compute Fresnel reflection coefficients
         # (num_active_samples,)
@@ -1194,7 +1195,7 @@ class SolverCoverageMap(SolverBase):
 
         # Apply transformation to field vector
         # (num_active_samples, num_tx_patterns, 2)
-        e_field = trans_mat @ e_field
+        e_field = matvec(trans_mat, e_field)
 
         # Draw random directions for scattered paths
         # (num_active_samples, 3)
@@ -1435,7 +1436,7 @@ class SolverCoverageMap(SolverBase):
             rot_mat = rotation_matrix(ris.orientation)[np.newaxis]
             # (this_ris_num_samples, 3)
             int_point_lcs = int_point - ris.position[np.newaxis]
-            int_point_lcs = rot_mat.T @ int_point_lcs
+            int_point_lcs = matvec(rot_mat, int_point_lcs, True)
 
             # As the LCS assumes x=0, we can remove the first dimension
             # (this_ris_num_samples, 2)
@@ -1462,11 +1463,11 @@ class SolverCoverageMap(SolverBase):
             hessian_m = np.transpose(hessian_m, [1, 0, 2, 3])[mode]
             # Bring RIS phase gradient to GCS
             # (this_ris_num_samples, 3)
-            grad_m = rot_mat @ grad_m
+            grad_m = matvec(rot_mat, grad_m)
 
             # Bring RIS phase Hessian to GCS
             # (this_ris_num_samples, 3, 3)
-            hessian_m = rot_mat @ (hessian_m @ rot_mat.T)
+            hessian_m = rot_mat @ (hessian_m @ np.moveaxis(rot_mat, -1, -2))
 
             # Compute total phase gradient - Eq.(11)
             # (this_ris_num_samples, 3)
@@ -1500,7 +1501,7 @@ class SolverCoverageMap(SolverBase):
             # Compute reflected curvature matrix - Eq.(21)
             # (this_ris_num_samples, 3, 3)
             q_r = q_i - 1 / self._scene.wavenumber * hessian_m @ l
-            q_r = l.T @ q_r
+            q_r = np.moveaxis(l, -1, -2) @ q_r
 
             # Extract principal axes of curvature and associated radii - Eq.(4)
             e, v, _ = np.linalg.svd(q_r)
@@ -1523,7 +1524,7 @@ class SolverCoverageMap(SolverBase):
 
             # Outgoing field - Eq.(14)
             # (this_ris_num_samples, num_tx_patterns, 2)
-            e_field = mat_comp @ e_field
+            e_field = matvec(mat_comp, e_field)
             e_field *= gamma_m[:, np.newaxis, np.newaxis]
 
             # Basis vectors for reflected field
@@ -2834,7 +2835,7 @@ class SolverCoverageMap(SolverBase):
                 si_ris_t = si_ris.t
                 si_ris_val = si_ris.is_valid()
             else:
-                si_ris_t = float("inf")
+                si_ris_t = np.inf
                 si_ris_val = False
 
             hit_scene_dr = si_scene.is_valid() & (si_scene.t < si_ris_t)
@@ -3697,7 +3698,7 @@ class SolverCoverageMap(SolverBase):
         # Direction of diffracted rays in CGS
 
         # (num_tx, num_samples, 3)
-        diff_dir = lcs2gcs @ diff_dir
+        diff_dir = matvec(lcs2gcs, diff_dir)
 
         # Origin of the diffracted rays
 
@@ -3874,7 +3875,7 @@ class SolverCoverageMap(SolverBase):
         gcs2lcs = np.expand_dims(gcs2lcs, axis=0)
         # Normal in LCS
         # (1, num_samples, 3)
-        cm_normal = gcs2lcs @ cm_normal
+        cm_normal = matvec(gcs2lcs, cm_normal)
 
         # Projections of the transmitters on the wedges
         # (1, num_samples, 3)
@@ -4046,7 +4047,7 @@ class SolverCoverageMap(SolverBase):
         def f(x):
             """F(x) Eq.(88) in [ITUR_P526]"""
             sqrt_x = np.sqrt(x)
-            sqrt_pi_2 = np.astype(np.sqrt(np.pi / 2.0), x.dtype)
+            sqrt_pi_2 = np.sqrt(np.pi / 2.0)
 
             # Fresnel integral
             arg = sqrt_x / sqrt_pi_2
@@ -4253,9 +4254,7 @@ class SolverCoverageMap(SolverBase):
             return 2 * np.cos((2.0 * n * np.pi * n_m(beta, n) - beta) / 2.0) ** 2
 
         # (1, num_samples)
-        d_mul = -np.astype(np.exp(-1j * np.pi / 4.0), self._dtype) / np.astype(
-            (2 * n) * np.sqrt(2 * np.pi * k), self._dtype
-        )
+        d_mul = -np.exp(-1j * np.pi / 4.0) / ((2 * n) * np.sqrt(2 * np.pi * k))
 
         # (num_tx, num_samples)
         ell = s_prime * s / (s_prime + s)
@@ -4455,8 +4454,8 @@ class SolverCoverageMap(SolverBase):
         rot_gcs_2_cm = rot_cm_2_gcs.T
 
         # Initializing the coverage map
-        num_cells_x = np.astype(np.ceil(cm_size[0] / cm_cell_size[0]), np.int_)
-        num_cells_y = np.astype(np.ceil(cm_size[1] / cm_cell_size[1]), np.int_)
+        num_cells_x = int(np.ceil(cm_size[0] / cm_cell_size[0]))
+        num_cells_y = int(np.ceil(cm_size[1] / cm_cell_size[1]))
         num_cells = np.stack([num_cells_x, num_cells_y], axis=-1)
         # (num_tx, num_cells_y+1, num_cells_x+1)
         # Add dummy row and columns to store the items that are out of the
@@ -4492,7 +4491,7 @@ class SolverCoverageMap(SolverBase):
         # Update the weights of each ray power
         # (1, num_samples)
         diff_num_samples_per_wedge = np.expand_dims(diff_num_samples_per_wedge, axis=0)
-        diff_num_samples_per_wedge = np.astype(diff_num_samples_per_wedge, np.float_)
+        diff_num_samples_per_wedge = float(diff_num_samples_per_wedge)
         # (num_tx, num_samples)
         diff_samples_weights = np.where(
             diff_num_samples_per_wedge == 0.0,
@@ -4599,8 +4598,8 @@ class SolverCoverageMap(SolverBase):
         """
 
         # Build empty coverage map
-        num_cells_x = np.astype(np.ceil(cm_size[0] / cm_cell_size[0]), np.int_)
-        num_cells_y = np.astype(np.ceil(cm_size[1] / cm_cell_size[1]), np.int_)
+        num_cells_x = int(np.ceil(cm_size[0] / cm_cell_size[0]))
+        num_cells_y = int(np.ceil(cm_size[1] / cm_cell_size[1]))
         # (num_tx, num_cells_y, num_cells_x)
         cm_null = np.zeros(
             [sources_positions.shape[0], num_cells_y, num_cells_x], dtype=np.float_
