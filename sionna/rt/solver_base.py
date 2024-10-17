@@ -418,7 +418,7 @@ class SolverBase:
 
                 def f(x):
                     return np.full([num_using_objects], x)
-                idx = np.reshape(using_objects, [-1, 1])
+                idx = using_objects
                 if not rm_callable_set:
                     relative_permittivity[idx] = f(rm.complex_relative_permittivity)
                     scattering_coefficient[idx] = f(rm.scattering_coefficient)
