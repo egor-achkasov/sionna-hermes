@@ -184,7 +184,7 @@ class Scene:
             raise ValueError("Frequency must be positive")
         self._frequency = float(f)
         # Wavelength [m]
-        self._wavelength = speed_of_light
+        self._wavelength = speed_of_light / self._frequency
 
         # Update radio materials
         for mat in self.radio_materials.values():
