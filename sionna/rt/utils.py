@@ -648,7 +648,7 @@ def fibonacci_lattice(num_points, dtype=np.float_):
         Generated rectangular coordinates of the lattice points
     """
 
-    golden_ratio = (1.0 + np.sqrt(np.float64(5))) / 2.0
+    golden_ratio = (1.0 + np.sqrt(5.)) / 2.0
     ns = np.arange(0, num_points, dtype=np.float_)
 
     x = ns / golden_ratio
@@ -659,6 +659,30 @@ def fibonacci_lattice(num_points, dtype=np.float_):
     points = points.astype(dtype)
 
     return points
+
+
+def fibonacci_sphere(num_points):
+    """
+    Generates a 3D Fibonacci lattice for a unit sphere
+
+    Args:
+        num_points (int): Number of points
+
+    Returns:
+        points (np.ndarray) :
+            (num_points, 3)
+            Generated spherical coordinates of the sphere.
+    """
+    k = np.arange(num_points, dtype=np.float_) + .5
+    phi = np.arccos(1. - 2. * k / num_points)
+    theta = np.pi * (1. + np.sqrt(5.)) * k
+
+    res = np.empty((num_points, 3), np.float_)
+    res[:, 0] = np.sin(phi) * np.cos(theta)
+    res[:, 1] = np.sin(phi) * np.sin(theta)
+    res[:, 2] = np.cos(phi)
+
+    return res
 
 
 def cot(x):

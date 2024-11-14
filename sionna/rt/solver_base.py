@@ -8,6 +8,7 @@ paths.
 """
 
 import mitsuba as mi
+import open3d as o3d
 import drjit as dr
 import numpy as np
 
@@ -103,6 +104,7 @@ class SolverBase:
         self._scene = scene
         mi_scene = scene.mi_scene
         self._mi_scene = mi_scene
+        self._o3d_scene = scene._scene_o3d
 
         # If a solver is provided, then link to the same structures to avoid
         # useless compute and memory use
@@ -912,3 +914,41 @@ class SolverBase:
         mi_ris_scene = mi.load_dict(scene_dict)
 
         return mi_ris_scene
+
+    def _build_o3d_ris_objects(self):
+        r"""
+        Builds an Open3D scene containing all RIS as rectangles with position,
+        orientation, and size matching the RIS properties.∂
+
+        Output
+        ------
+        : o3d.t.geometry.RaycastingScene
+            Open3D Scene containing rectangles corresponding to RIS
+        """
+        # List of all the RIS objects in the scene
+        all_ris = list(self._scene.ris.values())
+
+        # Creates a scene containing RIS as rectangles
+        vertices = []
+        triangles = []
+        for ris in all_ris:
+            pos = ris.position
+            orient = ris.orientation
+            size = ris.size
+            triangles.append(np.array([0, 1, 2, 0, 2, 3]) + len(vertices))
+            vertices.append(np.array(
+                [
+                    pos + np.dot(orient, [-size[0], -size[1], 0]),
+                    pos + np.dot(orient, [size[0], -size[1], 0]),
+                    pos + np.dot(orient, [size[0], size[1], 0]),
+                    pos + np.dot(orient, [-size[0], size[1], 0]),
+                ]
+            ))
+
+        scene = o3d.t.geometry.RaycastingScene()
+        if len(vertices) == 0:
+            return scene
+        vertices = o3d.core.Tensor(np.stack(vertices), dtype=o3d.core.Dtype.Float32)
+        triangles = o3d.core.Tensor(np.stack(triangles), dtype=o3d.core.Dtype.Float32)
+        scene.add_triangles(vertices, triangles)
+        return scene

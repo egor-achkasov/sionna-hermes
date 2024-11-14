@@ -14,6 +14,7 @@ from importlib_resources import files
 import matplotlib
 import matplotlib.pyplot as plt
 import mitsuba as mi
+import open3d as o3d
 import numpy as np
 import drjit as dr
 
@@ -84,8 +85,6 @@ class Scene:
             instance._receivers = {}
             # Reconfigurable intelligent surfaces
             instance._ris = {}
-            # Reconfigurable intelligent surfaces
-            instance._ris = {}
             # Cameras
             instance._cameras = {}
             # Transmitter antenna array
@@ -116,49 +115,60 @@ class Scene:
 
         # If a filename is provided, loads the scene from it.
         # The previous scene is overwritten.
-        if env_filename:
-            self._dtype = dtype
-            self._rdtype = np.float_
+        if env_filename is None:
+            return
 
-            # Clear it all
-            self._clear()
+        self._dtype = dtype
+        self._rdtype = np.float_
 
-            # Set the frequency to the default value
-            self.frequency = Scene.DEFAULT_FREQUENCY
+        # Clear it all
+        self._clear()
 
-            # Populate with ITU materials
-            instantiate_itu_materials(self._dtype)
+        # Set the frequency to the default value
+        self.frequency = Scene.DEFAULT_FREQUENCY
 
-            # Load the scene
-            # Keep track of the Mitsuba scene
-            if env_filename == "__empty__":
-                # Set an empty scene
-                self._scene = mi.load_dict(
-                    {"type": "scene", "integrator": {"type": "path"}}
-                )
-            else:
-                self._scene = mi.load_file(env_filename)
-            self._scene_params = mi.traverse(self._scene)
+        # Populate with ITU materials
+        instantiate_itu_materials(self._dtype)
 
-            # Instantiate the solver
-            self._solver_paths = SolverPaths(self, dtype=dtype)
-
-            # Solver for coverage map
-            self._solver_cm = SolverCoverageMap(
-                self, solver=self._solver_paths, dtype=dtype
+        # Load the scene
+        # Keep track of the Mitsuba scene
+        if env_filename == "__empty__":
+            # Set an empty scene
+            self._scene = mi.load_dict(
+                {"type": "scene", "integrator": {"type": "path"}}
             )
+        else:
+            self._scene = mi.load_file(env_filename)
+        self._scene_params = mi.traverse(self._scene)
 
-            # Load the cameras
-            self._load_cameras()
+        # Construct open3d scene
+        self._scene_o3d = o3d.t.geometry.RaycastingScene()
+        for shape in self._scene.shapes():
+            if shape.is_mesh():
+                self._scene_o3d.add_triangles(
+                    o3d.core.Tensor(np.array([shape.vertex_position(i).numpy()[0] for i in range(shape.vertex_count())])),
+                    o3d.core.Tensor(np.array([np.array(shape.face_indices(i))[0] for i in range(shape.face_count())])),
+                )
 
-            # Load the scene objects
-            self._load_scene_objects()
+        # Instantiate the solver
+        self._solver_paths = SolverPaths(self, dtype=dtype)
 
-            # By default, no callable is used for radio materials
-            self.radio_material_callable = None
+        # Solver for coverage map
+        self._solver_cm = SolverCoverageMap(
+            self, solver=self._solver_paths, dtype=dtype
+        )
 
-            # By default, no callable is used for scattering patterns
-            self._scattering_pattern_callable = None
+        # Load the cameras
+        self._load_cameras()
+
+        # Load the scene objects
+        self._load_scene_objects()
+
+        # By default, no callable is used for radio materials
+        self.radio_material_callable = None
+
+        # By default, no callable is used for scattering patterns
+        self._scattering_pattern_callable = None
 
     @property
     def cameras(self):
@@ -2153,3 +2163,32 @@ Example scene containing a metallic box
 .. figure:: ../figures/box.png
    :align: center
 """
+
+
+# Xml parser that replaces the Mitsuba load_scene method
+########################################################
+
+
+class Open3DScene():
+    r"""
+    Mitsuba scene replacer for the Mitsuba scene.
+    Used as Scene._scene field.
+    """
+    pass
+
+
+def o3d_load_mitsuba_scene(filename: str) -> Open3DScene:
+    r"""
+    Load a Misuba scene with the materials.
+
+    Input
+    -----
+    filename : str
+        Name of a valid scene file. Sionna uses the simple XML-based format
+        from `Mitsuba 3 <https://mitsuba.readthedocs.io/en/stable/src/key_topics/scene_format.html>`.
+
+    Returns
+    -------
+    scene : Open3DScene
+        Reference to the current scene
+    """

@@ -7,7 +7,10 @@ Ray tracing algorithm that uses the image method to compute all pure reflection
 paths.
 """
 
+from typing import Tuple
+
 import mitsuba as mi
+import open3d as o3d
 import drjit as dr
 import numpy as np
 
@@ -28,6 +31,7 @@ from .utils import (
     compute_field_unit_vectors,
     reflection_coefficient,
     fibonacci_lattice,
+    fibonacci_sphere,
     cot,
     cross,
     sign,
@@ -531,6 +535,7 @@ class SolverPaths(SolverBase):
         # testing intersections with RIS
         ##############################################
         mi_ris_scene = self._build_mi_ris_objects()
+        o3d_ris_scene = self._build_o3d_ris_objects()
 
         ##############################################
         # Generate candidate paths
@@ -564,20 +569,19 @@ class SolverPaths(SolverBase):
             #       Sequence of primitives hit at `hit_points`.
             # hit_points : [max_depth, num_sources, num_paths_per_source, 3]
             #     Coordinates of the intersection points.
-            output = self._list_candidates_fibonacci(
+            output = self._list_candidates_fibonacci_o3d(
                 max_depth,
                 sources,
                 num_samples,
                 los,
                 reflection,
                 scattering,
-                mi_ris_scene,
+                o3d_ris_scene,
             )
             candidates = output[0]
             los_prim = output[1]
             candidates_scat = output[2]
             hit_points = output[3]
-
         else:
             raise ValueError(f"Unknown method '{method}'")
 
@@ -1307,11 +1311,9 @@ class SolverPaths(SolverBase):
         hit_points : [max_depth, num_sources, num_paths_per_source, 3], np.float_
             Intersection points.
         """
-        mask_t = dr.mask_t(self._mi_scalar_t)
-
         # Ensure that sample count can be distributed over the emitters
         num_sources = sources.shape[0]
-        samples_per_source = int(dr.ceil(num_samples / num_sources))
+        samples_per_source = int(np.ceil(num_samples / num_sources))
         num_samples = num_sources * samples_per_source
 
         # List of candidates
@@ -1327,7 +1329,7 @@ class SolverPaths(SolverBase):
         if not is_empty:
 
             # Keep track of which paths are still active
-            active = dr.full(mask_t, True, num_samples)
+            active = np.full((num_samples,), True, dtype=bool)
 
             # Initial ray: Arranged in a Fibonacci lattice on the unit
             # sphere.
@@ -1358,9 +1360,7 @@ class SolverPaths(SolverBase):
                 dr.eval(si_ris)
 
                 # Intersection valid if not obstructed by RIS
-                valid_int = si.is_valid() & (si.t < si_ris.t)
-
-                active &= valid_int
+                active &= si.is_valid() & (si.t < si_ris.t)
 
                 # Record which primitives were hit
                 shape_i = dr.gather(
@@ -1518,6 +1518,178 @@ class SolverPaths(SolverBase):
 
         return candidates_ref, los_primitives, candidates_scat, hit_points
 
+    def _list_candidates_fibonacci_o3d(
+        self,
+        max_depth: int,
+        sources: np.ndarray,
+        num_samples: int,
+        los: bool,
+        reflection: bool,
+        scattering: bool,
+        o3d_ris_scene: o3d.t.geometry.RaycastingScene,
+    ) -> Tuple[np.ndarray, np.ndarray | None, np.ndarray, np.ndarray]:
+        r"""
+        Generate potential candidate paths made of reflections only and the
+        LoS. Rays direction are arranged in a Fibonacci lattice on the unit
+        sphere.
+
+        This can be used when the triangle count or maximum depth make the
+        exhaustive method impractical.
+
+        A budget of ``num_samples`` rays is split equally over the given
+        sources. Starting directions are sampled uniformly at random.
+        Paths are simulated until the maximum depth is reached.
+        We record all sequences of primitives hit and the prefixes of these
+        sequences, and return unique sequences.
+
+        Input
+        ------
+        max_depth: int
+            Maximum number of reflections.
+            Set to 0 for LoS only.
+
+        sources : [num_sources, 3], np.float_
+            Coordinates of the sources.
+
+        num_samples: int
+            Number of rays to trace in order to generate candidates.
+            A large sample count may exhaust GPU memory.
+
+        los : bool
+            If set to `True`, then the LoS paths are computed.
+
+        reflection : bool
+            If set to `True`, then the reflected paths are computed.
+
+        scattering : bool
+            if set to `True`, then the scattered paths are computed
+
+        mi_ris_scene : mi.Scene
+            Mistuba scene containing the RIS
+
+        Output
+        -------
+        candidates_ref: [max_depth, num paths], int
+            Unique sequence of hitted primitives, with depth up to ``max_depth``.
+            Entries correspond to primitives indices.
+            Inactive paths are padded with -1.
+            The first path is the LoS one if LoS is requested.
+
+        los_candidates: [num_samples], int or `None`
+            Primitives in LoS. `None` is returned if ``max_depth`` is 0.
+
+        candidates_scat : [max_depth, num_sources, num_paths_per_source], int
+            Sequence of primitives hit at `hit_points`. Compared to
+            `candidates_ref`, it does not need to be unique, as the
+            intersection points are different for every sequence, and is
+            dependant on the source, as the intersection point are specific to
+            the sources positions.
+
+        hit_points : [max_depth, num_sources, num_paths_per_source, 3], np.float_
+            Intersection points. Inactive paths are padded with -1.
+        """
+        # Assert arguments
+        if max_depth < 0:
+            raise ValueError("max_depth must be non-negative")
+        if num_samples < 0:
+            raise ValueError("num_samples must be non-negative")
+
+        # If the scene is empty, return empty results
+        if self._shape_indices.numpy().size == 0:
+            return np.empty((0, 0), int), None, np.empty((0, 0, 0), int), np.empty((0, 0, 0, 3), float)
+
+        # Init results
+        los_primitives : np.ndarray | None = None
+        candidates_scat : np.ndarray
+        hit_points : np.ndarray
+
+        # Construct a fibbonaci unit sphere to calculate ray directions
+        ray_srcs = np.repeat(sources, num_samples, axis=0)
+        ray_dsts = fibonacci_sphere(num_samples)
+        rays = o3d.core.Tensor(
+            np.concatenate([ray_srcs, ray_dsts], axis=1),
+            dtype=o3d.core.Dtype.Float32
+        )
+
+        # Calculate number of samples
+        num_sources = sources.shape[0]
+        samples_per_source = int(np.ceil(num_samples / num_sources))
+        num_samples = num_sources * samples_per_source
+
+        # Init active rays mask
+        active = np.full((num_samples,), True, dtype=bool)
+
+        # Cast rays
+        cur_depth = 0
+        candidates = []
+        hit_points = []
+        while cur_depth < max_depth and rays.shape[0] > 0:
+            # Cast rays and find the hitted primitives
+            ans = self._o3d_scene.cast_rays(rays)
+            ans_ris = o3d_ris_scene.cast_rays(rays)
+
+            # Intersection valid if not obstructed by RIS
+            active[active] &= ans["t_hit"].isfinite().numpy() & (ans["t_hit"] < ans_ris["t_hit"]).numpy()
+
+            # If none of the rays hit anything then break the loop
+            if not np.any(active):
+                break
+
+            # Record which primitives were hit
+            prims = ans["geometry_ids"][active].numpy()
+            # TODO make prims offsets a numpy ndarray
+            prims = self._prim_offsets.numpy()[prims] + ans["primitive_ids"][active].numpy()
+            candidate = np.full(active.shape, -1)
+            candidate[active] = prims
+            candidates.append(candidate)
+
+            # Discard inactive rays and advance the remaining
+            rays = rays[active].numpy()
+            # Calculate the new ray origins
+            rays[:, :3] += rays[:, :3] * ans["t_hit"][active].numpy()[:, np.newaxis]
+            # Calculate the new ray directions
+            normals = ans["primitive_normals"][active].numpy()
+            rays[:, 3:] -= 2.0 * np.sum(normals*rays[:, 3:], axis=1)[:, np.newaxis] * normals
+            # Record the hit points
+            hit_points_t = np.full((num_samples, 3), -1, dtype=float)
+            hit_points_t[active] = rays[:, :3]
+            hit_points.append(hit_points_t)
+            # Cast the rays back to o3d Tensor
+            rays = o3d.core.Tensor(rays, dtype=o3d.core.Dtype.Float32)
+
+            # Advance iteration
+            cur_depth += 1
+
+        # Calculate actual max_depth
+        # It can differ if at some point no ray hits any primitive
+        max_depth_actual = min(cur_depth, max_depth)
+
+        # In case no ray hits any primitive, return empty results
+        if max_depth_actual == 0:
+            return np.empty((0, 0), int), None, np.empty((0, 0, 0), int), np.empty((0, 0, 0, 3), float)
+
+        # Get LoS primitives
+        los_primitives = np.unique(candidates[0])
+        los_primitives = los_primitives[los_primitives != -1]
+
+        # Stack the candidates into a numpy array
+        candidates = np.stack(candidates, axis=0)
+        candidates = candidates if reflection else np.empty((0, 0), int)
+
+        # Remove duplicates
+        candidates = np.unique(candidates, axis=1)
+
+        if scattering:
+            hit_points_shape = (max_depth_actual, num_sources, samples_per_source, 3)
+            candidates_scat = np.reshape(candidates, hit_points_shape[:3])
+            hit_points = np.stack(hit_points, axis=0)
+            hit_points = np.reshape(hit_points, hit_points_shape)
+        else:
+            candidates_scat = np.empty((0, num_sources, 1), int)
+            hit_points = np.empty((0, num_sources, 1, 3), float)
+
+        return candidates, los_primitives, candidates_scat, hit_points
+
     ##################################################################
     # Methods used for computing the specular paths
     ##################################################################
@@ -1560,7 +1732,7 @@ class SolverPaths(SolverBase):
         max_depth = candidates.shape[0]
 
         # Number of candidates
-        num_samples = np.shape(candidates)[1]
+        num_samples = candidates.shape[1]
 
         # Number of sources and number of receivers
         num_sources = len(sources)
@@ -1606,7 +1778,7 @@ class SolverPaths(SolverBase):
             # This makes no difference on the resulting paths as such paths
             # are not flagged as active.
             # valid_prim_idx = prim_idx
-            valid_prim_idx = np.where(prim_idx == -1, 0, prim_idx)
+            valid_prim_idx = np.where(active, prim_idx, 0)
 
             # Mirroring of the current point with respected to the
             # potentially hitted triangle.
