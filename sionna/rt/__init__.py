@@ -73,6 +73,7 @@ from .utils import (
     gen_orthogonal_vector,
     mi_to_np_ndarray,
     fibonacci_lattice,
+    fibonacci_sphere,
     cot,
     sign,
     rot_mat_from_unit_vecs,
